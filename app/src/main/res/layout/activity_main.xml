@@ -10,25 +10,31 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
-    <!-- Touch HUD -->
-    <LinearLayout
+    <TextView
+        android:id="@+id/hudInfo"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_margin="16dp"
-        android:orientation="vertical">
-        <TextView
-            android:id="@+id/hudInfo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:shadowColor="#000"
-            android:shadowDx="1"
-            android:shadowDy="1"
-            android:shadowRadius="2"
-            android:text="And Craft"/>
-    </LinearLayout>
+        android:layout_gravity="top|start"
+        android:layout_margin="12dp"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:shadowColor="#000"
+        android:shadowDx="1"
+        android:shadowDy="1"
+        android:shadowRadius="2"
+        android:text="And Craft"/>
+
+    <TextView
+        android:id="@+id/toast"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal|top"
+        android:layout_marginTop="48dp"
+        android:textColor="#FFE9A6"
+        android:textSize="14sp"
+        android:shadowColor="#000"
+        android:shadowRadius="3"
+        android:text=""/>
 
     <TextView
         android:id="@+id/crosshair"
@@ -41,31 +47,47 @@
         android:shadowColor="#000"
         android:shadowRadius="2"/>
 
+    <!-- Hotbar -->
+    <LinearLayout
+        android:id="@+id/hotbar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="12dp"
+        android:orientation="horizontal"/>
+
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_margin="12dp"
         android:orientation="horizontal">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMode"
+            android:layout_width="64dp"
+            android:layout_height="56dp"
+            android:layout_margin="3dp"
+            android:text="MODE"
+            android:textSize="10sp"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBreak"
             android:layout_width="72dp"
             android:layout_height="72dp"
-            android:layout_margin="4dp"
+            android:layout_margin="3dp"
             android:text="BREAK"
             android:textSize="11sp"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPlace"
             android:layout_width="72dp"
             android:layout_height="72dp"
-            android:layout_margin="4dp"
+            android:layout_margin="3dp"
             android:text="PLACE"
             android:textSize="11sp"/>
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnJump"
             android:layout_width="72dp"
             android:layout_height="72dp"
-            android:layout_margin="4dp"
+            android:layout_margin="3dp"
             android:text="JUMP"
             android:textSize="11sp"/>
     </LinearLayout>

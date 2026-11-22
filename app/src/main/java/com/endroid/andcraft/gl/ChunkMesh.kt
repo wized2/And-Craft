@@ -56,10 +56,11 @@ class ChunkMesh(val cx: Int, val cz: Int) {
             inds.add(base); inds.add((base + 1).toShort()); inds.add((base + 2).toShort())
             inds.add(base); inds.add((base + 2).toShort()); inds.add((base + 3).toShort())
         }
-        fun opaque(id: Int) = id != Blocks.AIR && id != Blocks.WATER
+        fun opaque(id: Int) = id != Blocks.AIR && id != Blocks.WATER && id != Blocks.WHEAT0 && id != Blocks.WHEAT1 && id != Blocks.WHEAT2 && id != Blocks.LEAVES
+        fun drawAsBlock(id: Int) = id != Blocks.AIR && id != Blocks.WATER
         for (y in 0 until World.H) for (z in 0 until World.CS) for (x in 0 until World.CS) {
             val id = world.get(baseX + x, y, baseZ + z)
-            if (!opaque(id)) continue
+            if (!drawAsBlock(id)) continue
             val wx = baseX + x; val wz = baseZ + z
             if (!opaque(world.get(wx + 1, y, wz))) addFace(wx, y, wz, 0, id)
             if (!opaque(world.get(wx - 1, y, wz))) addFace(wx, y, wz, 1, id)
