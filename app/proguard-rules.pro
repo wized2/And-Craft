@@ -1,0 +1,2 @@
+-keep class com.endroid.andcraft.** { *; }
+-dontwarn javax.annotation.**

@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.AndCraft" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#2E9C8F</item>
+        <item name="colorPrimaryVariant">#1F6F66</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+    </style>
+    <style name="Theme.AndCraft.Full" parent="Theme.AndCraft">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>
