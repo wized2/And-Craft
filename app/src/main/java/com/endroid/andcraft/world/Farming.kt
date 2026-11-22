@@ -20,28 +20,15 @@ object Farming {
     fun tryUse(world: World, player: Player, hit: Hit): Boolean {
         val id = player.selected()
         val tb = world.get(hit.x, hit.y, hit.z)
-        // plant seeds
-        if (id == Blocks.SEEDS || id == Blocks.WHEAT0) {
-            if (tb == Blocks.DIRT || tb == Blocks.GRASS || tb == Blocks.FARMLAND) {
-                if (tb != Blocks.FARMLAND) world.set(hit.x, hit.y, hit.z, Blocks.FARMLAND)
-                if (world.get(hit.x, hit.y + 1, hit.z) == Blocks.AIR) {
-                    if (player.take(Blocks.SEEDS) || player.creative) {
-                        world.set(hit.x, hit.y + 1, hit.z, Blocks.WHEAT0)
-                        return true
-                    }
-                }
+        // seeds: till dirt/grass, then plant wheat
+        if (id == Blocks.SEEDS && player.has(Blocks.SEEDS)) {
+            if (tb == Blocks.DIRT || tb == Blocks.GRASS) world.set(hit.x, hit.y, hit.z, Blocks.FARMLAND)
+            val t2 = world.get(hit.x, hit.y, hit.z)
+            if (t2 == Blocks.FARMLAND && world.get(hit.x, hit.y + 1, hit.z) == Blocks.AIR) {
+                player.take(Blocks.SEEDS)
+                world.set(hit.x, hit.y + 1, hit.z, Blocks.WHEAT0)
+                return true
             }
-            if (tb == Blocks.FARMLAND && world.get(hit.x, hit.y + 1, hit.z) == Blocks.AIR) {
-                if (player.take(Blocks.SEEDS) || player.creative) {
-                    world.set(hit.x, hit.y + 1, hit.z, Blocks.WHEAT0)
-                    return true
-                }
-            }
-        }
-        // till with empty-ish hand (any dirt)
-        if (tb == Blocks.DIRT || tb == Blocks.GRASS) {
-            world.set(hit.x, hit.y, hit.z, Blocks.FARMLAND)
-            return true
         }
         return false
     }

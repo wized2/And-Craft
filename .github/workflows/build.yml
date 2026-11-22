@@ -1,4 +1,4 @@
-name: Build
+name: Build & Release
 
 on:
   push:
@@ -12,16 +12,29 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    permissions:
-      contents: write
     env:
-      IS_RELEASE: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') }}
+      # every push to main (and every v* tag) produces a GitHub Release
+      PUBLISH: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="v1.0.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
         with:
@@ -40,7 +53,6 @@ jobs:
 
       - name: Decode release keystore
         id: keys
-        if: env.IS_RELEASE == 'true'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
@@ -49,10 +61,7 @@ jobs:
         run: |
           if [ -z "${RELEASE_KEYSTORE_BASE64:-}" ] || [ -z "${RELEASE_STORE_PASSWORD:-}" ] \
              || [ -z "${RELEASE_KEY_PASSWORD:-}" ] || [ -z "${RELEASE_KEY_ALIAS:-}" ]; then
-            if [ "$GITHUB_REPOSITORY" = "wized2/And-Craft" ]; then
-              echo "::error::Release signing secrets are missing."
-              exit 1
-            fi
+            echo "::warning::Release signing secrets missing - release APK will be signed with a throwaway debug key (updates over an installed build will not work)."
             echo "signed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -64,11 +73,20 @@ jobs:
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug -PappVersionCode=${{ github.run_number }} -PappVersionName=${{ steps.ver.outputs.name }} --stacktrace
 
       - name: Build release APK
-        if: env.IS_RELEASE == 'true'
-        run: ./gradlew assembleRelease --stacktrace
+        if: env.PUBLISH == 'true'
+        run: ./gradlew assembleRelease -PappVersionCode=${{ github.run_number }} -PappVersionName=${{ steps.ver.outputs.name }} --stacktrace
+
+      - name: Name release APK
+        if: env.PUBLISH == 'true'
+        run: |
+          mkdir -p dist
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          SUFFIX=""
+          if [ "${{ steps.keys.outputs.signed }}" != "true" ]; then SUFFIX="-debugsigned"; fi
+          cp "$APK" "dist/AndCraft-${{ steps.ver.outputs.tag }}${SUFFIX}.apk"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
@@ -78,8 +96,12 @@ jobs:
             app/build/outputs/apk/**/*.apk
 
       - name: Publish GitHub Release
-        if: env.IS_RELEASE == 'true' && startsWith(github.ref, 'refs/tags/v')
+        if: env.PUBLISH == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/*.apk
+          tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: And Craft ${{ steps.ver.outputs.tag }}
+          files: dist/*.apk
           generate_release_notes: true
+          fail_on_unmatched_files: true

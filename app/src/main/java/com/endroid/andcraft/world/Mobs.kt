@@ -22,6 +22,7 @@ class Mob(
     var yaw = 0f
     var hurt = 0f
     var cd = 1f
+    var onGround = false
     var wt = 2f
     var dirx = 0f
     var dirz = 0f
@@ -71,13 +72,12 @@ class MobSystem {
                     if (dist < 24f) {
                         m.dirx = dx / dist; m.dirz = dz / dist; spd = m.spd
                     }
-                    if (dist < 1.5f && m.cd <= 0f && !player.creative) {
-                        player.hp = (player.hp - 2).coerceAtLeast(0)
+                    if (dist < 1.5f && Math.abs(player.y - m.y) < 1.8f && m.cd <= 0f && !player.creative) {
+                        player.hurt(3)
                         m.cd = 1f
                     }
                     if (dayK > 0.55f) {
-                        m.hp -= (3 * dt).toInt().coerceAtLeast(0)
-                        if (Math.random() < dt) m.hp--
+                        if (Math.random() < dt * 1.5) m.hp--
                         if (m.hp <= 0) { it.remove(); continue }
                     }
                 }
@@ -114,7 +114,8 @@ class MobSystem {
         for (yy in World.H - 1 downTo 1) {
             val b = world.get(x, yy, z)
             if (b == Blocks.AIR || Blocks.plant(b)) continue
-            if (Blocks.solid(b) || b == Blocks.WATER) { y = yy + 1; break }
+            if (b == Blocks.WATER) return
+            if (Blocks.solid(b)) { y = yy + 1; break }
         }
         if (y < 1) return
         mobs.add(Mob(type, x + 0.5f, y.toFloat(), z + 0.5f))
@@ -136,8 +137,10 @@ class MobSystem {
         }
         if (solid) {
             m.x -= dx; m.y -= dy; m.z -= dz
-            if (dy < 0) m.vy = 0f
-        }
+            if (dy < 0f) { m.vy = 0f; m.onGround = true }
+            else if (dy > 0f) m.vy = 0f
+            else if (m.onGround) { m.vy = 7.5f; m.onGround = false } // hop over 1-block steps
+        } else if (dy < 0f) m.onGround = false
     }
 
     fun hit(player: Player, look: FloatArray): Mob? {

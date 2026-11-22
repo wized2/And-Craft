@@ -20,7 +20,7 @@ class ChunkMesh(val cx: Int, val cz: Int) {
         var vi = 0
         val baseX = cx * World.CS
         val baseZ = cz * World.CS
-        fun addFace(x: Int, y: Int, z: Int, face: Int, id: Int) {
+        fun addFace(x: Int, y: Int, z: Int, face: Int, id: Int, hgt: Float = 1f) {
             val c = Blocks.color(id)
             val shade = when (face) {
                 2 -> 1f; 3 -> 0.65f; 0, 1 -> 0.8f; else -> 0.75f
@@ -49,7 +49,7 @@ class ChunkMesh(val cx: Int, val cz: Int) {
             }
             val base = vi.toShort()
             for (p in corners) {
-                verts.add(x + p[0]); verts.add(y + p[1]); verts.add(z + p[2])
+                verts.add(x + p[0]); verts.add(y + p[1] * hgt); verts.add(z + p[2])
                 verts.add(r); verts.add(g); verts.add(b)
                 vi++
             }
@@ -60,14 +60,22 @@ class ChunkMesh(val cx: Int, val cz: Int) {
         fun drawAsBlock(id: Int) = id != Blocks.AIR && id != Blocks.WATER
         for (y in 0 until World.H) for (z in 0 until World.CS) for (x in 0 until World.CS) {
             val id = world.get(baseX + x, y, baseZ + z)
-            if (!drawAsBlock(id)) continue
             val wx = baseX + x; val wz = baseZ + z
-            if (!opaque(world.get(wx + 1, y, wz))) addFace(wx, y, wz, 0, id)
-            if (!opaque(world.get(wx - 1, y, wz))) addFace(wx, y, wz, 1, id)
-            if (!opaque(world.get(wx, y + 1, wz))) addFace(wx, y, wz, 2, id)
-            if (!opaque(world.get(wx, y - 1, wz))) addFace(wx, y, wz, 3, id)
-            if (!opaque(world.get(wx, y, wz + 1))) addFace(wx, y, wz, 4, id)
-            if (!opaque(world.get(wx, y, wz - 1))) addFace(wx, y, wz, 5, id)
+            if (id == Blocks.WATER) {
+                if (world.get(wx, y + 1, wz) == Blocks.AIR) addFace(wx, y, wz, 2, id, 0.88f)
+                continue
+            }
+            if (!drawAsBlock(id)) continue
+            val hg = when (id) {
+                Blocks.WHEAT0 -> 0.35f; Blocks.WHEAT1 -> 0.6f; Blocks.WHEAT2 -> 0.9f
+                Blocks.FARMLAND -> 0.94f; else -> 1f
+            }
+            if (!opaque(world.get(wx + 1, y, wz))) addFace(wx, y, wz, 0, id, hg)
+            if (!opaque(world.get(wx - 1, y, wz))) addFace(wx, y, wz, 1, id, hg)
+            if (!opaque(world.get(wx, y + 1, wz))) addFace(wx, y, wz, 2, id, hg)
+            if (!opaque(world.get(wx, y - 1, wz))) addFace(wx, y, wz, 3, id, hg)
+            if (!opaque(world.get(wx, y, wz + 1))) addFace(wx, y, wz, 4, id, hg)
+            if (!opaque(world.get(wx, y, wz - 1))) addFace(wx, y, wz, 5, id, hg)
         }
         release()
         if (inds.isEmpty()) { ready = false; return }

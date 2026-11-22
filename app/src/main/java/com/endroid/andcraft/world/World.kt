@@ -3,7 +3,7 @@ package com.endroid.andcraft.world
 import kotlin.math.floor
 import kotlin.math.sin
 
-class World(val seed: Long = System.currentTimeMillis()) {
+class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
     companion object {
         const val CS = 16
         const val H = 48
@@ -11,6 +11,8 @@ class World(val seed: Long = System.currentTimeMillis()) {
     }
 
     private val chunks = HashMap<Long, ByteArray>()
+    /** player-made changes per chunk (index -> block id); saved and re-applied after generation */
+    val edits = HashMap<Long, HashMap<Int, Int>>()
     val meshDirty = HashSet<Long>()
     private val villagesDone = HashSet<Long>()
 
@@ -76,6 +78,7 @@ class World(val seed: Long = System.currentTimeMillis()) {
         chunks.getOrPut(key(cx, cz)) {
             val d = genChunk(cx, cz)
             tryGenVillage(cx, cz, d)
+            edits[key(cx, cz)]?.forEach { (i, id) -> d[i] = id.toByte() }
             d
         }
 
@@ -135,7 +138,9 @@ class World(val seed: Long = System.currentTimeMillis()) {
         val c = chunk(cx, cz)
         val lx = ((x % CS) + CS) % CS
         val lz = ((z % CS) + CS) % CS
-        c[lx + CS * (lz + CS * y)] = id.toByte()
+        val idx = lx + CS * (lz + CS * y)
+        c[idx] = id.toByte()
+        edits.getOrPut(key(cx, cz)) { HashMap() }[idx] = id
         meshDirty.add(key(cx, cz))
         if (lx == 0) meshDirty.add(key(cx - 1, cz))
         if (lx == CS - 1) meshDirty.add(key(cx + 1, cz))
@@ -151,5 +156,57 @@ class World(val seed: Long = System.currentTimeMillis()) {
         val cx = floor(px / CS.toFloat()).toInt()
         val cz = floor(pz / CS.toFloat()).toInt()
         for (dz in -r..r) for (dx in -r..r) chunk(cx + dx, cz + dz)
+    }
+
+    /** open grass/sand ground above sea level, no trees nearby */
+    fun findSpawn(): IntArray {
+        fun top(x: Int, z: Int): Int {
+            for (y in H - 1 downTo 1) { val b = get(x, y, z); if (b != Blocks.AIR) return y }
+            return -1
+        }
+        for (r in 0..64 step 2) for (dx in -r..r step 2) for (dz in -r..r step 2) {
+            if (Math.abs(dx) != r && Math.abs(dz) != r) continue
+            val h = top(dx, dz)
+            if (h <= SEA + 1) continue
+            val t = get(dx, h, dz)
+            if (t != Blocks.GRASS && t != Blocks.SAND && t != Blocks.SNOW) continue
+            var ok = true
+            for (ax in -2..2) for (az in -2..2) {
+                val hh = top(dx + ax, dz + az)
+                if (hh < 0 || Math.abs(hh - h) > 1) ok = false
+                for (dy in 1..6) { val b = get(dx + ax, h + dy, dz + az); if (b == Blocks.LOG || b == Blocks.LEAVES) ok = false }
+            }
+            if (ok) return intArrayOf(dx, h + 1, dz)
+        }
+        return intArrayOf(0, heightAt(0, 0) + 2, 0)
+    }
+
+    fun encodeEdits(): String {
+        val sb = StringBuilder()
+        for ((k, m) in edits) {
+            if (m.isEmpty()) continue
+            sb.append(k).append(':')
+            var first = true
+            for ((i, id) in m) { if (!first) sb.append('|'); first = false; sb.append(i).append('=').append(id) }
+            sb.append(';')
+        }
+        return sb.toString()
+    }
+
+    fun decodeEdits(s: String) {
+        for (part in s.split(';')) {
+            val c = part.indexOf(':')
+            if (c <= 0) continue
+            val k = part.substring(0, c).toLongOrNull() ?: continue
+            val m = HashMap<Int, Int>()
+            for (e in part.substring(c + 1).split('|')) {
+                val q = e.indexOf('=')
+                if (q <= 0) continue
+                val i = e.substring(0, q).toIntOrNull() ?: continue
+                val id = e.substring(q + 1).toIntOrNull() ?: continue
+                m[i] = id
+            }
+            edits[k] = m
+        }
     }
 }

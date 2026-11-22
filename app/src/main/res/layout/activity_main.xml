@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -17,7 +18,7 @@
         android:layout_gravity="top|start"
         android:layout_margin="12dp"
         android:textColor="#FFFFFF"
-        android:textSize="12sp"
+        android:textSize="11sp"
         android:shadowColor="#000"
         android:shadowDx="1"
         android:shadowDy="1"
@@ -29,7 +30,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal|top"
-        android:layout_marginTop="48dp"
+        android:layout_marginTop="56dp"
         android:textColor="#FFE9A6"
         android:textSize="14sp"
         android:shadowColor="#000"
@@ -41,54 +42,132 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:gravity="center"
         android:text="+"
         android:textColor="#FFFFFF"
         android:textSize="22sp"
         android:shadowColor="#000"
         android:shadowRadius="2"/>
 
-    <!-- Hotbar -->
+    <!-- top right: craft + menu -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:orientation="horizontal">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCraft"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:layout_marginEnd="6dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:text="CRAFT"
+            android:textSize="11sp"
+            app:backgroundTint="#66000000"/>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMenu"
+            android:layout_width="48dp"
+            android:layout_height="44dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            android:text="≡"
+            android:textSize="22sp"
+            app:backgroundTint="#66000000"/>
+    </LinearLayout>
+
+    <!-- hearts / food above the hotbar -->
+    <LinearLayout
+        android:id="@+id/stats"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="62dp"
+        android:orientation="horizontal">
+        <TextView
+            android:id="@+id/hearts"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FF3B3B"
+            android:textSize="14sp"
+            android:shadowColor="#000"
+            android:shadowRadius="2"/>
+        <TextView
+            android:id="@+id/foodbar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:textColor="#FFB040"
+            android:textSize="14sp"
+            android:shadowColor="#000"
+            android:shadowRadius="2"/>
+    </LinearLayout>
+
     <LinearLayout
         android:id="@+id/hotbar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="12dp"
+        android:layout_marginBottom="8dp"
         android:orientation="horizontal"/>
 
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <!-- thumb arc, bottom right: JUMP in the corner, BREAK left of it, PLACE above, EAT between -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnJump"
+        android:layout_width="76dp"
+        android:layout_height="76dp"
         android:layout_gravity="bottom|end"
-        android:layout_margin="12dp"
-        android:orientation="horizontal">
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnMode"
-            android:layout_width="64dp"
-            android:layout_height="56dp"
-            android:layout_margin="3dp"
-            android:text="MODE"
-            android:textSize="10sp"/>
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnBreak"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_margin="3dp"
-            android:text="BREAK"
-            android:textSize="11sp"/>
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPlace"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_margin="3dp"
-            android:text="PLACE"
-            android:textSize="11sp"/>
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnJump"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_margin="3dp"
-            android:text="JUMP"
-            android:textSize="11sp"/>
-    </LinearLayout>
+        android:layout_marginEnd="14dp"
+        android:layout_marginBottom="14dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:padding="0dp"
+        android:text="JUMP"
+        android:textSize="11sp"
+        app:cornerRadius="38dp"
+        app:backgroundTint="#66000000"/>
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnBreak"
+        android:layout_width="66dp"
+        android:layout_height="66dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="98dp"
+        android:layout_marginBottom="20dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:padding="0dp"
+        android:text="BREAK"
+        android:textSize="10sp"
+        app:cornerRadius="33dp"
+        app:backgroundTint="#66000000"/>
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPlace"
+        android:layout_width="66dp"
+        android:layout_height="66dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="98dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:padding="0dp"
+        android:text="PLACE"
+        android:textSize="10sp"
+        app:cornerRadius="33dp"
+        app:backgroundTint="#66000000"/>
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnEat"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="98dp"
+        android:layout_marginBottom="94dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:padding="0dp"
+        android:text="EAT"
+        android:textSize="9sp"
+        app:cornerRadius="26dp"
+        app:backgroundTint="#66000000"/>
 </FrameLayout>

@@ -10,7 +10,7 @@ import kotlin.math.hypot
 class GameSurfaceView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null
 ) : GLSurfaceView(context, attrs) {
-    val renderer = GameRenderer()
+    val renderer = GameRenderer(context.applicationContext)
     private var lookId = -1
     private var joyId = -1
     private var lastX = 0f
@@ -49,12 +49,15 @@ class GameSurfaceView @JvmOverloads constructor(
                         // forward is -dy (up on screen), strafe is dx
                         renderer.forward = (-dy / m) * nm
                         renderer.strafe = (dx / m) * nm
+                        renderer.sprint = nm > 0.95f
                     } else if (id == lookId) {
                         val dx = x - lastX; val dy = y - lastY
                         lastX = x; lastY = y
-                        renderer.player.yaw -= dx * 0.0045f
-                        renderer.player.pitch = (renderer.player.pitch - dy * 0.0045f)
-                            .coerceIn(-1.55f, 1.55f)
+                        if (renderer.ready) {
+                            renderer.player.yaw -= dx * 0.0045f
+                            renderer.player.pitch = (renderer.player.pitch - dy * 0.0045f)
+                                .coerceIn(-1.55f, 1.55f)
+                        }
                     }
                 }
             }
@@ -64,6 +67,7 @@ class GameSurfaceView @JvmOverloads constructor(
                     joyId = -1
                     renderer.forward = 0f
                     renderer.strafe = 0f
+                    renderer.sprint = false
                 }
                 if (id == lookId) lookId = -1
             }
