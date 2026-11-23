@@ -90,42 +90,136 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
             d
         }
 
+    class Village(val cx: Int, val cz: Int, val x: Float, val z: Float, val y: Int)
+    private val vCache = HashMap<Long, Village?>()
+    private val VR = 6
+
+    fun villageAt(rx: Int, rz: Int): Village? = vCache.getOrPut(key(rx, rz)) {
+        if (hash(rx * 7 + 1, rz * 11 + 5, 23) >= 0.5f || (rx == 0 && rz == 0)) return@getOrPut null
+        val vx = rx * VR + 1 + (hash(rx, rz, 21) * 4).toInt().coerceIn(0, 3)
+        val vz = rz * VR + 1 + (hash(rx, rz, 22) * 4).toInt().coerceIn(0, 3)
+        val x = vx * CS + 8; val z = vz * CS + 8
+        val h = heightAt(x, z)
+        if (h > SEA + 2 && h < 34) Village(vx, vz, x.toFloat(), z.toFloat(), h) else null
+    }
+
+    fun villageOfChunk(cx: Int, cz: Int): Village? {
+        val rx = floor(cx / VR.toFloat()).toInt(); val rz = floor(cz / VR.toFloat()).toInt()
+        for (a in -1..1) for (b in -1..1) {
+            val v = villageAt(rx + a, rz + b) ?: continue
+            if (Math.abs(cx - v.cx) <= 1 && Math.abs(cz - v.cz) <= 1) return v
+        }
+        return null
+    }
+
+    fun nearestVillage(x: Float, z: Float, maxD: Float): Village? {
+        val rx = floor(x / CS / VR).toInt(); val rz = floor(z / CS / VR).toInt()
+        var best: Village? = null; var bd = maxD
+        for (a in -1..1) for (b in -1..1) {
+            val v = villageAt(rx + a, rz + b) ?: continue
+            val d = Math.hypot((v.x - x).toDouble(), (v.z - z).toDouble()).toFloat()
+            if (d < bd) { bd = d; best = v }
+        }
+        return best
+    }
+
     private fun tryGenVillage(cx: Int, cz: Int, d: ByteArray) {
         val k = key(cx, cz)
         if (!villagesDone.add(k)) return
-        if (hash(cx * 17, cz * 13, 7) >= 0.05f) return
-        val ox = 2; val oz = 8
-        val wx = cx * CS + ox; val wz = cz * CS + oz
-        val h = heightAt(wx, wz)
-        if (h <= SEA + 2 || h >= 32) return
+        val v = villageOfChunk(cx, cz) ?: return
+        val dx = cx - v.cx; val dz = cz - v.cz
+        val hc = heightAt(cx * CS + 8, cz * CS + 8)
+        if (Math.abs(hc - v.y) > 4 || hc <= SEA + 1) return
+        val y0 = hc.coerceIn(SEA + 1, H - 9)
         fun idx(x: Int, y: Int, z: Int) = x + CS * (z + CS * y)
         fun put(lx: Int, y: Int, lz: Int, id: Int) {
             if (lx !in 0 until CS || lz !in 0 until CS || y !in 1 until H - 1) return
             d[idx(lx, y, lz)] = id.toByte()
         }
-        // small house
-        for (dx in 0..3) for (dz in 0..3) {
-            for (yy in h - 1..h) put(ox + dx, yy, oz + dz, if (yy == h) Blocks.PLANKS else Blocks.DIRT)
-            for (yy in h + 1..h + 3) put(ox + dx, yy, oz + dz, Blocks.AIR)
+        fun at(lx: Int, y: Int, lz: Int): Int =
+            if (lx !in 0 until CS || lz !in 0 until CS || y !in 0 until H) 0 else d[idx(lx, y, lz)].toInt() and 0xff
+        fun surf(lx: Int, lz: Int): Int {
+            for (y in H - 2 downTo 1) { val b = at(lx, y, lz); if (b != 0 && b != Blocks.WATER && b != Blocks.LOG && b != Blocks.LEAVES && !Blocks.plant(b)) return y }
+            return SEA
         }
-        for (dx in 0..3) for (dz in 0..3) {
-            if (dx == 0 || dx == 3 || dz == 0 || dz == 3) {
-                put(ox + dx, h + 1, oz + dz, Blocks.PLANKS)
-                put(ox + dx, h + 2, oz + dz, Blocks.PLANKS)
+        fun found(lx: Int, lz: Int, mat: Int, depth: Int = 6) {
+            var yy = y0 - 1
+            while (yy > y0 - depth) { val b = at(lx, yy, lz); if (b != 0 && b != Blocks.WATER) break; put(lx, yy, lz, mat); yy-- }
+        }
+        fun clear(lx: Int, lz: Int, h: Int) { for (yy in y0 + 1..y0 + h) put(lx, yy, lz, Blocks.AIR) }
+        val swap = dx == 0 && dz != 0
+        // frame: a along axis, b across
+        fun lx(a: Int, b: Int) = if (swap) b else a
+        fun lz(a: Int, b: Int) = if (swap) a else b
+        fun P(a: Int, b: Int, y: Int, id: Int) = put(lx(a, b), y, lz(a, b), id)
+        fun house(a0: Int, b0: Int, prof: Int) {
+            for (da in 0 until 5) for (db in 0 until 5) {
+                val a = a0 + da; val b = b0 + db
+                found(lx(a, b), lz(a, b), Blocks.STONE)
+                P(a, b, y0, Blocks.PLANKS)
+                clear(lx(a, b), lz(a, b), 7)
             }
-            put(ox + dx, h + 3, oz + dz, Blocks.LOG)
+            for (da in 0 until 5) for (db in 0 until 5) {
+                if (da in 1..3 && db in 1..3) continue
+                val corner = da % 4 == 0 && db % 4 == 0
+                for (h in 1..3) P(a0 + da, b0 + db, y0 + h, if (corner) Blocks.LOG else Blocks.PLANKS)
+            }
+            P(a0 + 2, b0, y0 + 1, Blocks.AIR); P(a0 + 2, b0, y0 + 2, Blocks.AIR); P(a0 + 2, b0, y0, Blocks.PATH)
+            P(a0, b0 + 2, y0 + 2, Blocks.GLASS); P(a0 + 4, b0 + 2, y0 + 2, Blocks.GLASS); P(a0 + 2, b0 + 4, y0 + 2, Blocks.GLASS)
+            for (da in -1..5) for (db in -1..5) {
+                val inner = da in 0..4 && db in 0..4
+                val rim = (da == -1 || da == 5) && db in 0..4 || (db == -1 || db == 5) && da in 0..4
+                if (inner || rim) P(a0 + da, b0 + db, y0 + 4, if (inner) Blocks.PLANKS else Blocks.LOG)
+            }
+            for (da in 1..3) for (db in 1..3) P(a0 + da, b0 + db, y0 + 5, Blocks.PLANKS)
+            P(a0 + 2, b0 + 2, y0 + 6, Blocks.LOG)
+            P(a0 + 3, b0 + 3, y0 + 1, Blocks.BED); P(a0 + 1, b0 + 3, y0 + 1, Blocks.TORCH)
+            P(a0 + 1, b0 + 1, y0 + 1, if (prof == 2) Blocks.FURNACE else Blocks.CHEST)
+            val x = cx * CS + lx(a0 + 2, b0 + 2); val z = cz * CS + lz(a0 + 2, b0 + 2)
+            villagerSpawns.add(floatArrayOf(x + 0.5f, y0 + 1f, z + 0.5f, prof.toFloat()))
         }
-        put(ox + 1, h + 1, oz, Blocks.AIR); put(ox + 1, h + 2, oz, Blocks.AIR)
-        put(ox + 2, h + 1, oz, Blocks.AIR); put(ox + 2, h + 2, oz, Blocks.AIR)
-        put(ox + 2, h + 1, oz + 2, Blocks.BED)
-        villagerSpawns.add(floatArrayOf(wx + 1.5f, h + 1f, wz + 1.5f, (hash(cx, cz, 21) * 3f).toInt().coerceIn(0, 2).toFloat()))
-        // farm
-        for (dx in 0..4) for (dz in 0..3) {
-            val lx = 3 + dx; val lz = 2 + dz
-            put(lx, h, lz, Blocks.FARMLAND)
-            if (dz == 1 && dx in 1..3) put(lx, h, lz, Blocks.WATER)
-            else put(lx, h + 1, lz, if (hash(lx, lz, 9) < 0.7f) Blocks.WHEAT1 else Blocks.WHEAT0)
+        fun farm(a0: Int, b0: Int) {
+            for (da in 0 until 7) for (db in 0 until 5) {
+                val a = a0 + da; val b = b0 + db
+                found(lx(a, b), lz(a, b), Blocks.DIRT, 5)
+                P(a, b, y0 - 1, Blocks.DIRT)
+                clear(lx(a, b), lz(a, b), 3)
+                val edge = da == 0 || da == 6 || db == 0 || db == 4
+                when {
+                    edge -> P(a, b, y0, Blocks.LOG)
+                    db == 2 -> P(a, b, y0, Blocks.WATER)
+                    else -> {
+                        P(a, b, y0, Blocks.FARMLAND)
+                        val r = hash(cx * CS + lx(a, b), cz * CS + lz(a, b), 31)
+                        val c = if (r < 0.12f) 0 else if (r < 0.4f) Blocks.WHEAT0 else if (r < 0.7f) Blocks.WHEAT1 else Blocks.WHEAT2
+                        P(a, b, y0 + 1, c)
+                    }
+                }
+            }
+            P(a0, b0, y0 + 1, Blocks.TORCH); P(a0 + 6, b0 + 4, y0 + 1, Blocks.TORCH)
+            val x = cx * CS + lx(a0 + 3, b0 + 5); val z = cz * CS + lz(a0 + 3, b0 + 5)
+            villagerSpawns.add(floatArrayOf(x + 0.5f, y0 + 1f, z + 0.5f, 0f))
         }
+        val prof = (hash(cx, cz, 41) * 3f).toInt().coerceIn(0, 2)
+        if (dx == 0 && dz == 0) {
+            // well + crossroad
+            for (ax in 5..9) for (az in 5..9) { found(ax, az, Blocks.STONE); clear(ax, az, 6); put(ax, y0, az, Blocks.PATH) }
+            for (ax in 6..8) for (az in 6..8) put(ax, y0, az, Blocks.STONE)
+            put(7, y0, 7, Blocks.WATER); put(7, y0 - 1, 7, Blocks.WATER)
+            for ((px, pz) in listOf(6 to 6, 8 to 6, 6 to 8, 8 to 8)) { put(px, y0 + 1, pz, Blocks.LOG); put(px, y0 + 2, pz, Blocks.LOG) }
+            for (ax in 6..8) for (az in 6..8) put(ax, y0 + 3, az, Blocks.PLANKS)
+            put(7, y0 + 4, 7, Blocks.LOG)
+            for (i in 0 until CS) for (j in 7..8) {
+                if (i in 5..9) continue
+                put(i, surf(i, j), j, Blocks.PATH); put(j, surf(j, i), i, Blocks.PATH)
+            }
+            villagerSpawns.add(floatArrayOf(cx * CS + 4.5f, y0 + 1f, cz * CS + 4.5f, 0f))
+        } else if (dx == 0 || dz == 0) {
+            for (a in 0 until CS) for (b in 7..8) put(lx(a, b), surf(lx(a, b), lz(a, b)), lz(a, b), Blocks.PATH)
+            farm(2, 1)
+            house(6, 10, prof)
+        } else if (hash(cx, cz, 43) < 0.45f) farm(4, 4)
+        else house(5, 5, prof)
         meshDirty.add(k)
     }
 

@@ -24,6 +24,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     private var spawn = intArrayOf(0, 40, 0)
 
     private val meshes = HashMap<Long, ChunkMesh>()
+    private val announced = HashSet<Long>()
     private val cube = CubeMesh()
     private var program = 0
     private var uMvp = 0
@@ -248,7 +249,11 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         if (world.villagerSpawns.isNotEmpty()) {
             for (v in world.villagerSpawns.toList()) mobs.add(MobType.VILLAGER, v[0], v[1], v[2], v[3].toInt())
             world.villagerSpawns.clear()
-            toast("You found a village!", 2.5f)
+        }
+        // announce a village only when really close to one
+        run {
+            val v = world.nearestVillage(player.x, player.z, 34f)
+            if (v != null && announced.add(v.cx.toLong() shl 32 xor (v.cz.toLong() and 0xffffffffL))) toast("You found a village!", 2.5f)
         }
         mobs.update(world, player, dayK, dt, dayNo)
         updateWeather(dt)

@@ -2,6 +2,7 @@ package com.endroid.andcraft.world
 
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sin
 
@@ -27,6 +28,10 @@ class Mob(
     var big = false
     var sheared = false
     var prof = 0
+    var ft = 0f
+    var cropX = Int.MIN_VALUE
+    var cropY = 0
+    var cropZ = 0
     var homeX = 0f
     var homeZ = 0f
     var dmg = 3
@@ -98,11 +103,41 @@ class MobSystem {
                     }
                 }
                 else -> {
-                    if (m.type == MobType.VILLAGER && hypot(m.x - m.homeX, m.z - m.homeZ) > 7f) {
+                    var busy = false
+                    if (m.type == MobType.VILLAGER) {
                         val hx = m.homeX - m.x; val hz = m.homeZ - m.z
                         val hd = hypot(hx, hz).coerceAtLeast(0.001f)
-                        m.dirx = hx / hd; m.dirz = hz / hd; m.wt = 2f
+                        if (dayK < 0.3f) { // night: go home and stay
+                            busy = true
+                            if (hd > 1.2f) { m.dirx = hx / hd; m.dirz = hz / hd; spd = m.spd } else { m.dirx = 0f; m.dirz = 0f }
+                        } else if (hd > 12f) {
+                            m.dirx = hx / hd; m.dirz = hz / hd; m.wt = 2f
+                        } else if (m.prof == 0) {
+                            m.ft -= dt
+                            if (m.ft <= 0f) { // look for ripe wheat near home
+                                m.ft = 2.5f; m.cropX = Int.MIN_VALUE
+                                var bd = 99f
+                                val bx = floor(m.homeX).toInt(); val bz = floor(m.homeZ).toInt(); val by = floor(m.y).toInt()
+                                for (x in bx - 9..bx + 9) for (z in bz - 9..bz + 9) for (y in by - 2..by + 1) {
+                                    if (world.get(x, y, z) == Blocks.WHEAT2) {
+                                        val d = hypot(x + 0.5f - m.x, z + 0.5f - m.z)
+                                        if (d < bd) { bd = d; m.cropX = x; m.cropY = y; m.cropZ = z }
+                                    }
+                                }
+                            }
+                            if (m.cropX != Int.MIN_VALUE) {
+                                if (world.get(m.cropX, m.cropY, m.cropZ) != Blocks.WHEAT2) m.cropX = Int.MIN_VALUE
+                                else {
+                                    val cx = m.cropX + 0.5f - m.x; val cz = m.cropZ + 0.5f - m.z
+                                    val cd = hypot(cx, cz).coerceAtLeast(0.001f)
+                                    busy = true
+                                    if (cd < 1.3f) { world.set(m.cropX, m.cropY, m.cropZ, Blocks.WHEAT0); m.cropX = Int.MIN_VALUE; m.ft = 1.2f; m.dirx = 0f; m.dirz = 0f }
+                                    else { m.dirx = cx / cd; m.dirz = cz / cd; spd = m.spd }
+                                }
+                            }
+                        }
                     }
+                    if (!busy) {
                     m.wt -= dt
                     if (m.wt <= 0f) {
                         m.wt = 2f + Math.random().toFloat() * 3f
@@ -113,6 +148,7 @@ class MobSystem {
                         }
                     }
                     if (m.dirx != 0f || m.dirz != 0f) spd = m.spd
+                    }
                 }
             }
             val k = (dt * 8f).coerceAtMost(1f)
