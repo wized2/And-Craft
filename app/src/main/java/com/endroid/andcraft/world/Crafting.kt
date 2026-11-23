@@ -17,6 +17,13 @@ object Crafting {
 
     val recipes: List<Recipe> = listOf(
         Recipe("Planks x4", mapOf(Blocks.LOG to 1), "") { it.give(Blocks.PLANKS, 4) },
+        Recipe("Sticks x4", mapOf(Blocks.PLANKS to 2), "for torches & tools") { it.give(Blocks.STICK, 4) },
+        Recipe("Torch x4", mapOf(Blocks.STICK to 1, Blocks.COAL_ORE to 1), "stick + coal") { it.give(Blocks.TORCH, 4) },
+        Recipe("Chest", mapOf(Blocks.PLANKS to 8), "store items") { it.give(Blocks.CHEST, 1) },
+        Recipe("Furnace", mapOf(Blocks.STONE to 8), "smelt food & ore") { it.give(Blocks.FURNACE, 1) },
+        Recipe("Shears", mapOf(Blocks.STONE to 2), "shear sheep") { it.give(Blocks.SHEARS, 1) },
+        Recipe("Bread x1", mapOf(Blocks.SEEDS to 3), "3 seeds of wheat -> bread") { it.give(Blocks.BREAD, 1) },
+        Recipe("Bread x4", mapOf(Blocks.SEEDS to 10), "bake a loaf stack") { it.give(Blocks.BREAD, 4) },
         Recipe("Wooden Pickaxe", mapOf(Blocks.PLANKS to 5), "mines stone, coal", { it.pick >= 1 }) { it.pick = 1 },
         Recipe("Wooden Sword", mapOf(Blocks.PLANKS to 3), "damage 4", { it.sword >= 1 }) { it.sword = 1 },
         Recipe("Wooden Axe", mapOf(Blocks.PLANKS to 5), "chops 2x faster", { it.axe >= 1 }) { it.axe = 1 },

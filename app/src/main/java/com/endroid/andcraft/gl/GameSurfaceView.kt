@@ -54,8 +54,8 @@ class GameSurfaceView @JvmOverloads constructor(
                         val dx = x - lastX; val dy = y - lastY
                         lastX = x; lastY = y
                         if (renderer.ready) {
-                            renderer.player.yaw -= dx * 0.0045f
-                            renderer.player.pitch = (renderer.player.pitch - dy * 0.0045f)
+                            renderer.player.yaw -= dx * 0.0045f * renderer.sens
+                            renderer.player.pitch = (renderer.player.pitch - dy * 0.0045f * renderer.sens)
                                 .coerceIn(-1.55f, 1.55f)
                         }
                     }

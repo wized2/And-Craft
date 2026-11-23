@@ -14,6 +14,8 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
     /** player-made changes per chunk (index -> block id); saved and re-applied after generation */
     val edits = HashMap<Long, HashMap<Int, Int>>()
     val meshDirty = HashSet<Long>()
+    /** villager spawn spots created by village generation: x, y, z, profession */
+    val villagerSpawns = ArrayList<FloatArray>()
     private val villagesDone = HashSet<Long>()
 
     private fun key(cx: Int, cz: Int): Long = (cx.toLong() shl 32) xor (cz.toLong() and 0xffffffffL)
@@ -57,6 +59,12 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
                 val r = hash(wx * 3 + y, wz * 5 + y * 7, 1)
                 if (r < 0.003f && y < 20) d[idx(x, y, z)] = Blocks.GOLD_ORE.toByte()
                 else if (r < 0.02f && y < 36) d[idx(x, y, z)] = Blocks.COAL_ORE.toByte()
+            }
+            // tall grass and flowers
+            if (!beach && !snow && h + 1 < H && h > SEA + 1) {
+                val fr = hash(wx, wz, 11)
+                val fid = if (fr < 0.1f) Blocks.TALLGRASS else if (fr < 0.108f) Blocks.ROSE else if (fr < 0.116f) Blocks.DANDELION else 0
+                if (fid != 0) d[idx(x, h + 1, z)] = fid.toByte()
             }
             // trees
             if (!beach && !snow && h > SEA + 2 && hash(wx, wz, 2) < 0.03f) {
@@ -110,6 +118,7 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
         put(ox + 1, h + 1, oz, Blocks.AIR); put(ox + 1, h + 2, oz, Blocks.AIR)
         put(ox + 2, h + 1, oz, Blocks.AIR); put(ox + 2, h + 2, oz, Blocks.AIR)
         put(ox + 2, h + 1, oz + 2, Blocks.BED)
+        villagerSpawns.add(floatArrayOf(wx + 1.5f, h + 1f, wz + 1.5f, (hash(cx, cz, 21) * 3f).toInt().coerceIn(0, 2).toFloat()))
         // farm
         for (dx in 0..4) for (dz in 0..3) {
             val lx = 3 + dx; val lz = 2 + dz

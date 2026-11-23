@@ -30,6 +30,11 @@ class Player(var x: Float, var y: Float, var z: Float) {
     var axe = 0
     var sword = 0
     var armor = 0
+    var autoJump = true
+    var kills = 0
+    var brutes = 0
+    var ate = 0
+    var sleeps = 0
     val hotbar = Blocks.HOTBAR_DEFAULT.copyOf()
     val inv = IntArray(64) { 0 }
     private var fallY = y
@@ -38,7 +43,8 @@ class Player(var x: Float, var y: Float, var z: Float) {
 
     fun starterKit() {
         inv[Blocks.SEEDS] = 8
-        inv[Blocks.BREAD] = 3
+        inv[Blocks.DIRT] = 16
+        inv[Blocks.GRASS] = 8
     }
 
     fun selected(): Int = hotbar[slot.coerceIn(0, hotbar.lastIndex)]
@@ -62,6 +68,16 @@ class Player(var x: Float, var y: Float, var z: Float) {
     fun give(id: Int, n: Int = 1) {
         if (creative || id <= 0 || id !in inv.indices || n <= 0) return
         inv[id] = min(999, inv[id] + n)
+        autoSlot(id)
+    }
+
+    /** put newly collected placeable items on the hotbar (replacing an empty slot) */
+    private fun autoSlot(id: Int) {
+        if (!(Blocks.placeable(id) || id == Blocks.SEEDS || id == Blocks.SHEARS)) return
+        if (hotbar.contains(id)) return
+        for (i in hotbar.indices) {
+            if (i != slot && count(hotbar[i]) == 0) { hotbar[i] = id; return }
+        }
     }
 
     fun weaponDmg(): Int = intArrayOf(2, 4, 5)[sword.coerceIn(0, 2)]
@@ -82,6 +98,7 @@ class Player(var x: Float, var y: Float, var z: Float) {
         if (creative || eatCd > 0f) return null
         if (count(Blocks.GOLDEN_APPLE) > 0) {
             inv[Blocks.GOLDEN_APPLE]--
+            ate++
             hp = min(20, hp + 4); food = min(20, food + 4); sat = min(food.toFloat(), sat + 9.6f)
             eatCd = 1.2f
             return "Golden Apple"
@@ -90,6 +107,7 @@ class Player(var x: Float, var y: Float, var z: Float) {
         for (id in Blocks.EAT_ORDER) {
             if (count(id) > 0) {
                 inv[id]--
+                ate++
                 food = min(20, food + Blocks.foodValue(id))
                 sat = min(food.toFloat(), sat + Blocks.satValue(id))
                 eatCd = 1.2f
@@ -181,7 +199,9 @@ class Player(var x: Float, var y: Float, var z: Float) {
     private fun moveAxis(world: World, dx: Float, dy: Float, dz: Float) {
         x += dx; y += dy; z += dz
         if (solid(world, x, y, z)) {
+            val stepUp = autoJump && onGround && (dx != 0f || dz != 0f) && !solid(world, x, y + 1.05f, z)
             x -= dx; y -= dy; z -= dz
+            if (stepUp) { vy = 8.4f; onGround = false }
             if (dy < 0) { onGround = true; vy = 0f } else if (dy > 0) vy = 0f
             if (dx != 0f) vx = 0f
             if (dz != 0f) vz = 0f

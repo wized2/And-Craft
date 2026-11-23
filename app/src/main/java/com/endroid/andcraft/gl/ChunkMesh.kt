@@ -20,12 +20,15 @@ class ChunkMesh(val cx: Int, val cz: Int) {
         var vi = 0
         val baseX = cx * World.CS
         val baseZ = cz * World.CS
-        fun addFace(x: Int, y: Int, z: Int, face: Int, id: Int, hgt: Float = 1f) {
-            val c = Blocks.color(id)
+        fun addFace(x: Int, y: Int, z: Int, face: Int, id: Int, hgt: Float = 1f, bx0: Float = 0f, bx1: Float = 1f, bz0: Float = 0f, bz1: Float = 1f) {
+            val c = Blocks.faceColor(id, face)
             val shade = when (face) {
                 2 -> 1f; 3 -> 0.65f; 0, 1 -> 0.8f; else -> 0.75f
             }
-            val r = c[0] * shade; val g = c[1] * shade; val b = c[2] * shade
+            var hh = x * 374761393 + y * 668265263 + z * 1274126177 + face * 7919
+            hh = (hh xor (hh ushr 13)) * 1274126177
+            val jit = 0.93f + 0.07f * ((hh ushr 8) and 0xff) / 255f
+            val r = c[0] * shade * jit; val g = c[1] * shade * jit; val b = c[2] * shade * jit
             // face vertices relative
             val corners = when (face) {
                 0 -> arrayOf( // +X
@@ -49,20 +52,26 @@ class ChunkMesh(val cx: Int, val cz: Int) {
             }
             val base = vi.toShort()
             for (p in corners) {
-                verts.add(x + p[0]); verts.add(y + p[1] * hgt); verts.add(z + p[2])
+                verts.add(x + bx0 + p[0] * (bx1 - bx0)); verts.add(y + p[1] * hgt); verts.add(z + bz0 + p[2] * (bz1 - bz0))
                 verts.add(r); verts.add(g); verts.add(b)
                 vi++
             }
             inds.add(base); inds.add((base + 1).toShort()); inds.add((base + 2).toShort())
             inds.add(base); inds.add((base + 2).toShort()); inds.add((base + 3).toShort())
         }
-        fun opaque(id: Int) = id != Blocks.AIR && id != Blocks.WATER && id != Blocks.WHEAT0 && id != Blocks.WHEAT1 && id != Blocks.WHEAT2 && id != Blocks.LEAVES
+        fun opaque(id: Int) = id != Blocks.AIR && id != Blocks.WATER && id != Blocks.WHEAT0 && id != Blocks.WHEAT1 && id != Blocks.WHEAT2 && id != Blocks.LEAVES && !Blocks.thin(id) && id != Blocks.GLASS
         fun drawAsBlock(id: Int) = id != Blocks.AIR && id != Blocks.WATER
         for (y in 0 until World.H) for (z in 0 until World.CS) for (x in 0 until World.CS) {
             val id = world.get(baseX + x, y, baseZ + z)
             val wx = baseX + x; val wz = baseZ + z
             if (id == Blocks.WATER) {
                 if (world.get(wx, y + 1, wz) == Blocks.AIR) addFace(wx, y, wz, 2, id, 0.88f)
+                continue
+            }
+            if (Blocks.thin(id)) {
+                val hgt = when (id) { Blocks.TORCH -> 0.6f; Blocks.TALLGRASS -> 0.7f; else -> 0.5f }
+                val lo = if (id == Blocks.TORCH) 0.43f else if (id == Blocks.TALLGRASS) 0.2f else 0.35f
+                for (f in 0..5) addFace(wx, y, wz, f, id, hgt, lo, 1f - lo, lo, 1f - lo)
                 continue
             }
             if (!drawAsBlock(id)) continue

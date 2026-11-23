@@ -22,13 +22,23 @@ class Mob(
     var yaw = 0f
     var hurt = 0f
     var cd = 1f
+    var wind = 0f
+    var stun = 0f
+    var big = false
+    var sheared = false
+    var prof = 0
+    var homeX = 0f
+    var homeZ = 0f
+    var dmg = 3
     var onGround = false
     var wt = 2f
     var dirx = 0f
     var dirz = 0f
-    val w = 0.35f
-    val h = if (type == MobType.ZOMBIE || type == MobType.VILLAGER) 1.8f else 0.9f
-    val spd = if (type == MobType.ZOMBIE) 3.2f else 1.1f
+    var w = 0.35f
+    var h = if (type == MobType.ZOMBIE || type == MobType.VILLAGER) 1.8f else 0.9f
+    var spd = if (type == MobType.ZOMBIE) 3.5f else 1.1f
+
+    fun bigify() { big = true; hp = 45; dmg = 5; w = 0.4f; h = 2.3f; spd = 3f }
     fun color(): FloatArray = when (type) {
         MobType.ZOMBIE -> floatArrayOf(0.25f, 0.45f, 0.28f)
         MobType.PIG -> floatArrayOf(0.94f, 0.63f, 0.66f)
@@ -42,14 +52,14 @@ class MobSystem {
     val mobs = ArrayList<Mob>()
     private var spawnT = 0f
 
-    fun update(world: World, player: Player, dayK: Float, dt: Float) {
+    fun update(world: World, player: Player, dayK: Float, dt: Float, day: Int = 0) {
         spawnT -= dt
         if (spawnT <= 0f) {
             spawnT = 2f
             val night = dayK < 0.32f
             val zc = mobs.count { it.type == MobType.ZOMBIE }
             val pc = mobs.size - zc
-            if (!player.creative && night && zc < 5) trySpawn(world, player, MobType.ZOMBIE)
+            if (!player.creative && night && zc < 5) trySpawn(world, player, MobType.ZOMBIE, day >= 2)
             else if (!night && pc < 8) {
                 val t = when ((Math.random() * 3).toInt()) {
                     0 -> MobType.PIG; 1 -> MobType.COW; else -> MobType.SHEEP
@@ -63,7 +73,7 @@ class MobSystem {
             val dx = player.x - m.x
             val dz = player.z - m.z
             val dist = hypot(dx, dz).coerceAtLeast(0.001f)
-            if (dist > 64f) { it.remove(); continue }
+            if (dist > 64f && m.type != MobType.VILLAGER) { it.remove(); continue }
             m.hurt = (m.hurt - dt).coerceAtLeast(0f)
             m.cd -= dt
             var spd = 0f
@@ -71,17 +81,28 @@ class MobSystem {
                 MobType.ZOMBIE -> {
                     if (dist < 24f) {
                         m.dirx = dx / dist; m.dirz = dz / dist; spd = m.spd
-                    }
-                    if (dist < 1.5f && Math.abs(player.y - m.y) < 1.8f && m.cd <= 0f && !player.creative) {
-                        player.hurt(3)
-                        m.cd = 1f
-                    }
+                    } else { m.dirx = 0f; m.dirz = 0f }
+                    // short wind-up you can dodge or interrupt, then a swipe
+                    m.stun = (m.stun - dt).coerceAtLeast(0f)
+                    if (m.wind > 0f) {
+                        m.wind -= dt
+                        if (m.wind <= 0f) {
+                            if (dist < 1.9f && Math.abs(player.y - m.y) < 1.7f && !player.creative) player.hurt(m.dmg)
+                            m.cd = 1f
+                        }
+                    } else if (dist < 1.5f && Math.abs(player.y - m.y) < 1.6f && m.cd <= 0f && m.stun <= 0f && !player.creative) m.wind = 0.42f
+                    if (m.wind > 0f || m.stun > 0f) { m.dirx = 0f; m.dirz = 0f; spd = 0f }
                     if (dayK > 0.55f) {
                         if (Math.random() < dt * 1.5) m.hp--
                         if (m.hp <= 0) { it.remove(); continue }
                     }
                 }
                 else -> {
+                    if (m.type == MobType.VILLAGER && hypot(m.x - m.homeX, m.z - m.homeZ) > 7f) {
+                        val hx = m.homeX - m.x; val hz = m.homeZ - m.z
+                        val hd = hypot(hx, hz).coerceAtLeast(0.001f)
+                        m.dirx = hx / hd; m.dirz = hz / hd; m.wt = 2f
+                    }
                     m.wt -= dt
                     if (m.wt <= 0f) {
                         m.wt = 2f + Math.random().toFloat() * 3f
@@ -105,7 +126,14 @@ class MobSystem {
         }
     }
 
-    private fun trySpawn(world: World, player: Player, type: MobType) {
+    fun add(type: MobType, x: Float, y: Float, z: Float, prof: Int = 0): Mob {
+        val m = Mob(type, x, y, z)
+        m.prof = prof; m.homeX = x; m.homeZ = z
+        mobs.add(m)
+        return m
+    }
+
+    private fun trySpawn(world: World, player: Player, type: MobType, brute: Boolean = false) {
         val a = Math.random() * Math.PI * 2
         val r = 16 + Math.random() * 12
         val x = (player.x + cos(a) * r).toInt()
@@ -118,7 +146,9 @@ class MobSystem {
             if (Blocks.solid(b)) { y = yy + 1; break }
         }
         if (y < 1) return
-        mobs.add(Mob(type, x + 0.5f, y.toFloat(), z + 0.5f))
+        val nm = Mob(type, x + 0.5f, y.toFloat(), z + 0.5f)
+        if (brute && Math.random() < 0.22) nm.bigify()
+        mobs.add(nm)
     }
 
     private fun step(world: World, m: Mob, dx: Float, dy: Float, dz: Float) {
@@ -145,7 +175,7 @@ class MobSystem {
 
     fun hit(player: Player, look: FloatArray): Mob? {
         var best: Mob? = null
-        var bd = 3.5f
+        var bd = 3.6f
         for (m in mobs) {
             val dx = m.x - player.x
             val dy = (m.y + m.h * 0.5f) - player.eyeY()

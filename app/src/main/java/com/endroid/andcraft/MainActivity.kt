@@ -13,6 +13,9 @@ import androidx.appcompat.app.AppCompatActivity
 import com.endroid.andcraft.gl.GameSurfaceView
 import com.endroid.andcraft.world.Blocks
 import com.endroid.andcraft.world.Crafting
+import com.endroid.andcraft.world.Machines
+import com.endroid.andcraft.world.Objectives
+import com.endroid.andcraft.world.Trades
 import com.google.android.material.button.MaterialButton
 
 class MainActivity : AppCompatActivity() {
@@ -28,9 +31,25 @@ class MainActivity : AppCompatActivity() {
                 val p = r.player
                 val day = if (r.dayK > 0.55f) "Day" else if (r.dayK < 0.3f) "Night" else "Dusk"
                 val dayNo = (r.clock / r.dayLen).toInt() + 1
-                findViewById<TextView>(R.id.hudInfo).text =
-                    "${r.fps} fps | ${p.x.toInt()}, ${p.y.toInt()}, ${p.z.toInt()}\n" +
-                        "${if (p.creative) "Creative" else "Survival"} · $day $dayNo · seed ${r.world.seed}"
+                val info = findViewById<TextView>(R.id.hudInfo)
+                info.visibility = if (r.showInfo) View.VISIBLE else View.GONE
+                info.text = "${r.fps} fps | ${p.x.toInt()}, ${p.y.toInt()}, ${p.z.toInt()}\n" +
+                    "${if (p.creative) "Creative" else "Survival"} · $day $dayNo · seed ${r.world.seed}"
+                val q = findViewById<TextView>(R.id.quest)
+                val oi = r.objIdx
+                if (!p.creative && oi < Objectives.list.size) {
+                    q.visibility = View.VISIBLE
+                    q.text = "Goal ${oi + 1}/${Objectives.list.size}: ${Objectives.list[oi].text}"
+                } else q.visibility = View.GONE
+                val req = r.uiRequest
+                if (req != null) {
+                    r.uiRequest = null
+                    when (req.kind) {
+                        "trade" -> showTrade(req.prof)
+                        "furnace" -> showFurnace(req.x, req.y, req.z)
+                        "chest" -> showChest(req.x, req.y, req.z)
+                    }
+                }
                 findViewById<TextView>(R.id.toast).text = if (r.toastT > 0f) r.toast else ""
                 val stats = findViewById<View>(R.id.stats)
                 stats.visibility = if (p.creative) View.GONE else View.VISIBLE
@@ -121,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         val items = arrayOf(
             "Mode: ${if (r.player.creative) "Creative" else "Survival"} (tap to switch)",
             "Backpack",
+            "Settings",
             "Back to spawn",
             "New world",
             "Close"
@@ -134,10 +154,107 @@ class MainActivity : AppCompatActivity() {
                     r.saveRequested = true
                 }
                 1 -> showBackpack()
-                2 -> game.queueEvent { r.player.respawn(r.world.findSpawn()); r.toast("Teleported to spawn") }
-                3 -> confirmNewWorld()
+                2 -> showSettings()
+                3 -> game.queueEvent { r.player.respawn(r.world.findSpawn()); r.toast("Teleported to spawn") }
+                4 -> confirmNewWorld()
             }
         })
+    }
+
+    /** run on the GL thread, then reopen a dialog on the UI thread */
+    private fun glThen(block: () -> Unit, then: () -> Unit) {
+        game.queueEvent { block(); runOnUiThread { then() } }
+    }
+
+    private fun showTrade(prof: Int) {
+        val r = game.renderer
+        val trades = Trades.BY_PROF[prof] ?: Trades.BY_PROF.getValue(0)
+        val labels = trades.map { it.name }.toTypedArray()
+        showDialog(AlertDialog.Builder(this).setTitle("Villager - ${Trades.PROF_NAMES[prof.coerceIn(0, 2)]}")
+            .setItems(labels) { _, i ->
+                glThen({
+                    val ok = Trades.apply(r.player, trades[i])
+                    r.toast(if (ok) "Trade done!" else "Not enough items", 1.5f)
+                }) { showTrade(prof) }
+            }
+            .setNegativeButton("Close", null))
+    }
+
+    private fun showFurnace(x: Int, y: Int, z: Int) {
+        val r = game.renderer
+        val p = r.player
+        val f = Machines.furnace(x, y, z)
+        val labels = ArrayList<String>()
+        val acts = ArrayList<() -> Unit>()
+        labels.add("Add coal (+40s fuel)  [have ${p.count(Blocks.COAL_ORE)}]")
+        acts.add {
+            if (p.take(Blocks.COAL_ORE)) { f.fuel += 40f; r.toast("Fueled furnace", 1f) } else r.toast("No coal", 1f)
+        }
+        for ((raw, out) in Machines.SMELT) {
+            if (!p.creative && p.count(raw) <= 0) continue
+            labels.add("Smelt ${Blocks.name(raw)} -> ${Blocks.name(out)}  [have ${p.count(raw)}]")
+            acts.add {
+                if (f.inId != 0) r.toast("Furnace busy", 1f)
+                else if (p.take(raw)) { f.inId = raw; f.prog = 0f; r.toast("Smelting ${Blocks.name(raw)}", 1f) }
+            }
+        }
+        labels.add("Take output: ${f.outN}x ${if (f.outId != 0) Blocks.name(f.outId) else "-"}")
+        acts.add {
+            if (f.outN > 0) { p.give(f.outId, f.outN); r.toast("Took ${f.outN}x ${Blocks.name(f.outId)}", 1.2f); f.outN = 0; f.outId = 0 }
+            else r.toast("Nothing ready", 1f)
+        }
+        val status = if (f.fuel > 0f) "Fuel ${f.fuel.toInt()}s · smelting ${(f.prog * 100).toInt()}%" else "Add coal, then raw food or gold ore"
+        showDialog(AlertDialog.Builder(this).setTitle("Furnace").setMessage(status)
+            .setItems(labels.toTypedArray()) { _, i -> glThen({ acts[i]() }) { showFurnace(x, y, z) } }
+            .setNegativeButton("Close", null))
+    }
+
+    private fun showChest(x: Int, y: Int, z: Int) {
+        val r = game.renderer
+        val p = r.player
+        val c = Machines.chest(x, y, z)
+        val labels = ArrayList<String>()
+        val acts = ArrayList<() -> Unit>()
+        for ((id, n) in c.entries.filter { it.value > 0 }.toList()) {
+            labels.add("Take ${Blocks.name(id)} x$n")
+            acts.add { p.give(id, n); c[id] = 0 }
+        }
+        val sel = p.selected()
+        labels.add("Deposit selected: ${Blocks.name(sel)} x${if (p.creative) 64 else p.count(sel)}")
+        acts.add {
+            if (p.creative) c[sel] = (c[sel] ?: 0) + 64
+            else if (p.count(sel) > 0) { val n = p.count(sel); p.inv[sel] = 0; c[sel] = (c[sel] ?: 0) + n }
+            else r.toast("Nothing to deposit", 1f)
+        }
+        showDialog(AlertDialog.Builder(this).setTitle("Chest")
+            .setItems(labels.toTypedArray()) { _, i -> glThen({ acts[i]() }) { showChest(x, y, z) } }
+            .setNegativeButton("Close", null))
+    }
+
+    private fun showSettings() {
+        val r = game.renderer
+        val views = arrayOf("First person", "Third person (back)", "Third person (front)")
+        val items = arrayOf(
+            "Render distance: ${r.renderDist}",
+            "Look sensitivity: ${r.sens}",
+            "Field of view: ${r.fov}",
+            "Auto-jump: ${if (r.autoJump) "on" else "off"}",
+            "Camera: ${views[r.camView.coerceIn(0, 2)]}",
+            "Debug info: ${if (r.showInfo) "on" else "off"}"
+        )
+        showDialog(AlertDialog.Builder(this).setTitle("Settings").setItems(items) { _, i ->
+            fun <T> next(a: List<T>, cur: T): T = a[(a.indexOf(cur) + 1).mod(a.size)]
+            when (i) {
+                0 -> r.renderDist = next(listOf(3, 4, 5, 6, 8), r.renderDist)
+                1 -> r.sens = next(listOf(0.5f, 0.75f, 1f, 1.5f, 2f), r.sens)
+                2 -> r.fov = next(listOf(60, 75, 90, 100), r.fov)
+                3 -> r.autoJump = !r.autoJump
+                4 -> r.camView = (r.camView + 1) % 3
+                5 -> r.showInfo = !r.showInfo
+            }
+            r.saveSettings()
+            showSettings()
+        }.setNegativeButton("Close", null))
     }
 
     private fun confirmNewWorld() {

@@ -16,6 +16,14 @@ object Blocks {
     const val COAL_ORE = 12
     const val GOLD_ORE = 13
     const val BED = 17
+    const val ROSE = 14
+    const val DANDELION = 15
+    const val TALLGRASS = 16
+    const val FURNACE = 39
+    const val CHEST = 40
+    const val TORCH = 41
+    const val STICK = 42
+    const val SHEARS = 43
     const val FARMLAND = 29
     const val WHEAT0 = 30
     const val WHEAT1 = 31
@@ -39,9 +47,14 @@ object Blocks {
     const val GOLDEN_APPLE = 28
 
     fun solid(id: Int): Boolean =
-        id != AIR && id != WATER && id != LEAVES && id != WHEAT0 && id != WHEAT1 && id != WHEAT2
+        id != AIR && id != WATER && id != LEAVES && id != WHEAT0 && id != WHEAT1 && id != WHEAT2 && !thin(id)
 
-    fun plant(id: Int): Boolean = id in WHEAT0..WHEAT2 || id == LEAVES
+    fun plant(id: Int): Boolean = id in WHEAT0..WHEAT2 || id == LEAVES || thin(id)
+
+    /** small decorations drawn as thin posts */
+    fun thin(id: Int): Boolean = id == ROSE || id == DANDELION || id == TALLGRASS || id == TORCH
+
+    fun placeable(id: Int): Boolean = id in 1..8 || id == GLASS || id == SNOW || id == BED || id == FURNACE || id == CHEST || id == TORCH
 
     fun name(id: Int): String = when (id) {
         GRASS -> "Grass"; DIRT -> "Dirt"; STONE -> "Stone"; LOG -> "Log"
@@ -49,6 +62,8 @@ object Blocks {
         WATER -> "Water"; GLASS -> "Glass"; SNOW -> "Snow"; COAL_ORE -> "Coal"
         GOLD_ORE -> "Gold"; BED -> "Bed"; FARMLAND -> "Farmland"
         WHEAT0, WHEAT1 -> "Wheat"; WHEAT2 -> "Wheat (grown)"
+        ROSE -> "Rose"; DANDELION -> "Dandelion"; TALLGRASS -> "Tall Grass"; FURNACE -> "Furnace"; CHEST -> "Chest"
+        TORCH -> "Torch"; STICK -> "Sticks"; SHEARS -> "Shears"
         SEEDS -> "Seeds"; BREAD -> "Bread"; EMERALD -> "Emerald"; PATH -> "Path"
         RAW_PORK -> "Raw Porkchop"; COOKED_PORK -> "Cooked Porkchop"; RAW_BEEF -> "Raw Beef"; STEAK -> "Steak"
         RAW_MUTTON -> "Raw Mutton"; COOKED_MUTTON -> "Cooked Mutton"; APPLE -> "Apple"; ROTTEN -> "Rotten Flesh"
@@ -71,6 +86,12 @@ object Blocks {
         COAL_ORE -> floatArrayOf(0.25f, 0.25f, 0.28f)
         GOLD_ORE -> floatArrayOf(0.85f, 0.72f, 0.22f)
         BED -> floatArrayOf(0.75f, 0.20f, 0.22f)
+        ROSE -> floatArrayOf(0.85f, 0.15f, 0.2f)
+        DANDELION -> floatArrayOf(0.95f, 0.85f, 0.2f)
+        TALLGRASS -> floatArrayOf(0.3f, 0.7f, 0.25f)
+        FURNACE -> floatArrayOf(0.45f, 0.45f, 0.47f)
+        CHEST -> floatArrayOf(0.62f, 0.42f, 0.18f)
+        TORCH -> floatArrayOf(1f, 0.85f, 0.35f)
         WHEAT0 -> floatArrayOf(0.40f, 0.55f, 0.20f)
         WHEAT1 -> floatArrayOf(0.60f, 0.60f, 0.25f)
         WHEAT2 -> floatArrayOf(0.82f, 0.72f, 0.25f)
@@ -89,20 +110,23 @@ object Blocks {
         GLASS -> 0.3f
         COAL_ORE, GOLD_ORE -> 3f
         PATH -> 0.65f
+        ROSE, DANDELION, TALLGRASS, TORCH -> 0f
+        FURNACE -> 3.5f
+        CHEST -> 2.5f
         WHEAT0, WHEAT1, WHEAT2 -> 0f
         else -> 1f
     }
 
     /** pickaxe tier needed to get a drop: 0 none, 1 wood, 2 stone */
     fun needPick(id: Int): Int = when (id) {
-        STONE, COAL_ORE, BRICK -> 1
+        STONE, COAL_ORE, BRICK, FURNACE -> 1
         GOLD_ORE -> 2
         else -> 0
     }
 
-    fun isItem(id: Int): Boolean = id in 18..28 || id == SEEDS || id == BREAD || id == EMERALD
+    fun isItem(id: Int): Boolean = id in 18..28 || id == SEEDS || id == BREAD || id == EMERALD || id == STICK || id == SHEARS
 
-    fun axeBlock(id: Int): Boolean = id == LOG || id == PLANKS || id == BED
+    fun axeBlock(id: Int): Boolean = id == LOG || id == PLANKS || id == BED || id == CHEST
 
     /** hunger restored (food points) */
     fun foodValue(id: Int): Int = when (id) {
@@ -118,4 +142,22 @@ object Blocks {
     }
 
     val EAT_ORDER = intArrayOf(STEAK, COOKED_PORK, COOKED_MUTTON, BREAD, APPLE, RAW_BEEF, RAW_PORK, RAW_MUTTON, ROTTEN)
+
+    private val DIRTC = floatArrayOf(0.52f, 0.37f, 0.23f)
+    private val SHADE = floatArrayOf(0f, 0f, 1f, 0.6f, 0.8f, 0.8f, 0.75f)
+
+    /** per-face base colour (face: 0/1 sides X, 2 top, 3 bottom, 4/5 sides Z) */
+    fun faceColor(id: Int, face: Int): FloatArray {
+        val top = face == 2
+        val bottom = face == 3
+        return when (id) {
+            GRASS -> if (top) color(GRASS) else DIRTC
+            LOG -> if (top || bottom) floatArrayOf(0.62f, 0.5f, 0.3f) else color(LOG)
+            BED -> if (top) color(BED) else floatArrayOf(0.55f, 0.4f, 0.22f)
+            FURNACE -> if (top) floatArrayOf(0.35f, 0.35f, 0.37f) else if (face == 4) floatArrayOf(0.25f, 0.2f, 0.18f) else color(FURNACE)
+            CHEST -> if (top) floatArrayOf(0.7f, 0.5f, 0.24f) else color(CHEST)
+            SNOW -> if (top) color(SNOW) else floatArrayOf(0.86f, 0.88f, 0.92f)
+            else -> color(id)
+        }
+    }
 }
