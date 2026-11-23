@@ -20,6 +20,8 @@ class CubeMesh {
         )
         val shade = floatArrayOf(0.8f, 0.8f, 1f, 0.6f, 0.75f, 0.75f)
         val v = FloatArray(6 * 4 * 6)
+        val wu = (Atlas.WHITE % Atlas.AC + 0.5f) / Atlas.AC
+        val wv = (Atlas.WHITE / Atlas.AC + 0.5f) / Atlas.AC
         val idx = ShortArray(36)
         var vi = 0
         var ii = 0
@@ -27,7 +29,7 @@ class CubeMesh {
             val base = (f * 4).toShort()
             for (c in 0 until 4) {
                 v[vi++] = faces[f][c * 3]; v[vi++] = faces[f][c * 3 + 1]; v[vi++] = faces[f][c * 3 + 2]
-                v[vi++] = shade[f]; v[vi++] = shade[f]; v[vi++] = shade[f]
+                v[vi++] = wu; v[vi++] = wv; v[vi++] = shade[f]
             }
             idx[ii++] = base; idx[ii++] = (base + 1).toShort(); idx[ii++] = (base + 2).toShort()
             idx[ii++] = base; idx[ii++] = (base + 2).toShort(); idx[ii++] = (base + 3).toShort()
@@ -47,13 +49,15 @@ class CubeMesh {
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
-    fun draw(aPos: Int, aCol: Int) {
+    fun draw(aPos: Int, aUV: Int, aL: Int) {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, ibo)
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 24, 0)
-        GLES20.glEnableVertexAttribArray(aCol)
-        GLES20.glVertexAttribPointer(aCol, 3, GLES20.GL_FLOAT, false, 24, 12)
+        GLES20.glEnableVertexAttribArray(aUV)
+        GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, 24, 12)
+        GLES20.glEnableVertexAttribArray(aL)
+        GLES20.glVertexAttribPointer(aL, 1, GLES20.GL_FLOAT, false, 24, 20)
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, 36, GLES20.GL_UNSIGNED_SHORT, 0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)

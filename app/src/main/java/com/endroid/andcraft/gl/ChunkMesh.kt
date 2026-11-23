@@ -5,127 +5,207 @@ import com.endroid.andcraft.world.Blocks
 import com.endroid.andcraft.world.World
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.FloatBuffer
-import java.nio.ShortBuffer
 
+/** Textured chunk mesh with per-vertex ambient occlusion. Two layers: opaque/cutout and translucent (water, glass). */
 class ChunkMesh(val cx: Int, val cz: Int) {
-    private var vbo = 0
-    private var ibo = 0
-    private var indexCount = 0
-    private var ready = false
+    private class Buf {
+        var v = FloatArray(8192)
+        var vn = 0
+        var i = ShortArray(8192)
+        var iN = 0
+        var verts = 0
+        fun vert(x: Float, y: Float, z: Float, u: Float, w: Float, l: Float) {
+            if (vn + 6 > v.size) v = v.copyOf(v.size * 2)
+            v[vn++] = x; v[vn++] = y; v[vn++] = z; v[vn++] = u; v[vn++] = w; v[vn++] = l
+            verts++
+        }
+        fun tri(a: Int, b: Int, c: Int) {
+            if (iN + 3 > i.size) i = i.copyOf(i.size * 2)
+            i[iN++] = a.toShort(); i[iN++] = b.toShort(); i[iN++] = c.toShort()
+        }
+    }
+
+    private class Layer { var vbo = 0; var ibo = 0; var count = 0 }
+    private val opq = Layer()
+    private val trn = Layer()
+
+    companion object {
+        val FACE_CORNERS = arrayOf(
+            intArrayOf(1,0,0, 1,1,0, 1,1,1, 1,0,1),
+            intArrayOf(0,0,1, 0,1,1, 0,1,0, 0,0,0),
+            intArrayOf(0,1,0, 0,1,1, 1,1,1, 1,1,0),
+            intArrayOf(0,0,0, 1,0,0, 1,0,1, 0,0,1),
+            intArrayOf(0,0,1, 1,0,1, 1,1,1, 0,1,1),
+            intArrayOf(1,0,0, 0,0,0, 0,1,0, 1,1,0)
+        )
+        val FACE_N = arrayOf(
+            intArrayOf(1,0,0), intArrayOf(-1,0,0), intArrayOf(0,1,0),
+            intArrayOf(0,-1,0), intArrayOf(0,0,1), intArrayOf(0,0,-1)
+        )
+        val SHADE = floatArrayOf(0.82f, 0.82f, 1f, 0.55f, 0.72f, 0.72f)
+        val AO = floatArrayOf(0.5f, 0.68f, 0.84f, 1f)
+    }
+
+    private val tuv = FloatArray(4)
 
     fun build(world: World) {
-        val verts = ArrayList<Float>(4096)
-        val inds = ArrayList<Short>(4096)
-        var vi = 0
-        val baseX = cx * World.CS
-        val baseZ = cz * World.CS
-        fun addFace(x: Int, y: Int, z: Int, face: Int, id: Int, hgt: Float = 1f, bx0: Float = 0f, bx1: Float = 1f, bz0: Float = 0f, bz1: Float = 1f) {
-            val c = Blocks.faceColor(id, face)
-            val shade = when (face) {
-                2 -> 1f; 3 -> 0.65f; 0, 1 -> 0.8f; else -> 0.75f
-            }
-            var hh = x * 374761393 + y * 668265263 + z * 1274126177 + face * 7919
-            hh = (hh xor (hh ushr 13)) * 1274126177
-            val jit = 0.93f + 0.07f * ((hh ushr 8) and 0xff) / 255f
-            val r = c[0] * shade * jit; val g = c[1] * shade * jit; val b = c[2] * shade * jit
-            // face vertices relative
-            val corners = when (face) {
-                0 -> arrayOf( // +X
-                    floatArrayOf(1f,0f,0f), floatArrayOf(1f,1f,0f), floatArrayOf(1f,1f,1f), floatArrayOf(1f,0f,1f)
-                )
-                1 -> arrayOf( // -X
-                    floatArrayOf(0f,0f,1f), floatArrayOf(0f,1f,1f), floatArrayOf(0f,1f,0f), floatArrayOf(0f,0f,0f)
-                )
-                2 -> arrayOf( // +Y
-                    floatArrayOf(0f,1f,0f), floatArrayOf(0f,1f,1f), floatArrayOf(1f,1f,1f), floatArrayOf(1f,1f,0f)
-                )
-                3 -> arrayOf( // -Y
-                    floatArrayOf(0f,0f,0f), floatArrayOf(1f,0f,0f), floatArrayOf(1f,0f,1f), floatArrayOf(0f,0f,1f)
-                )
-                4 -> arrayOf( // +Z
-                    floatArrayOf(0f,0f,1f), floatArrayOf(1f,0f,1f), floatArrayOf(1f,1f,1f), floatArrayOf(0f,1f,1f)
-                )
-                else -> arrayOf( // -Z
-                    floatArrayOf(1f,0f,0f), floatArrayOf(0f,0f,0f), floatArrayOf(0f,1f,0f), floatArrayOf(1f,1f,0f)
-                )
-            }
-            val base = vi.toShort()
-            for (p in corners) {
-                verts.add(x + bx0 + p[0] * (bx1 - bx0)); verts.add(y + p[1] * hgt); verts.add(z + bz0 + p[2] * (bz1 - bz0))
-                verts.add(r); verts.add(g); verts.add(b)
-                vi++
-            }
-            inds.add(base); inds.add((base + 1).toShort()); inds.add((base + 2).toShort())
-            inds.add(base); inds.add((base + 2).toShort()); inds.add((base + 3).toShort())
+        val H = World.H
+        val CS = World.CS
+        val baseX = cx * CS
+        val baseZ = cz * CS
+        val W = CS + 2
+        val cache = IntArray(W * W * H)
+        for (lz in 0 until W) for (lx in 0 until W) for (y in 0 until H)
+            cache[(lz * W + lx) * H + y] = world.get(baseX + lx - 1, y, baseZ + lz - 1)
+        fun g(x: Int, y: Int, z: Int): Int {
+            if (y < 0) return Blocks.STONE
+            if (y >= H) return Blocks.AIR
+            val lx = x - baseX + 1
+            val lz = z - baseZ + 1
+            if (lx < 0 || lz < 0 || lx >= W || lz >= W) return Blocks.AIR
+            return cache[(lz * W + lx) * H + y]
         }
-        fun opaque(id: Int) = id != Blocks.AIR && id != Blocks.WATER && id != Blocks.WHEAT0 && id != Blocks.WHEAT1 && id != Blocks.WHEAT2 && id != Blocks.LEAVES && !Blocks.thin(id) && id != Blocks.GLASS
-        fun drawAsBlock(id: Int) = id != Blocks.AIR && id != Blocks.WATER
-        for (y in 0 until World.H) for (z in 0 until World.CS) for (x in 0 until World.CS) {
-            val id = world.get(baseX + x, y, baseZ + z)
+        fun occl(id: Int) = id != Blocks.AIR && id != Blocks.WATER && id != Blocks.GLASS && id != Blocks.LEAVES &&
+            !Blocks.thin(id) && id !in Blocks.WHEAT0..Blocks.WHEAT2
+
+        val o = Buf()
+        val t = Buf()
+
+        fun aoOf(x: Int, y: Int, z: Int, f: Int, px: Int, py: Int, pz: Int): Float {
+            val n = FACE_N[f]
+            val bx = x + n[0]; val by = y + n[1]; val bz = z + n[2]
+            val s1x: Int; val s1y: Int; val s1z: Int; val s2x: Int; val s2y: Int; val s2z: Int
+            when (f) {
+                0, 1 -> { // normal X: tangents Y, Z
+                    val a = if (py == 1) 1 else -1; val b = if (pz == 1) 1 else -1
+                    s1x = 0; s1y = a; s1z = 0; s2x = 0; s2y = 0; s2z = b
+                }
+                2, 3 -> { // normal Y: tangents X, Z
+                    val a = if (px == 1) 1 else -1; val b = if (pz == 1) 1 else -1
+                    s1x = a; s1y = 0; s1z = 0; s2x = 0; s2y = 0; s2z = b
+                }
+                else -> { // normal Z: tangents X, Y
+                    val a = if (px == 1) 1 else -1; val b = if (py == 1) 1 else -1
+                    s1x = a; s1y = 0; s1z = 0; s2x = 0; s2y = b; s2z = 0
+                }
+            }
+            val sd1 = occl(g(bx + s1x, by + s1y, bz + s1z))
+            val sd2 = occl(g(bx + s2x, by + s2y, bz + s2z))
+            val cr = occl(g(bx + s1x + s2x, by + s1y + s2y, bz + s1z + s2z))
+            val level = if (sd1 && sd2) 0 else 3 - ((if (sd1) 1 else 0) + (if (sd2) 1 else 0) + (if (cr) 1 else 0))
+            return AO[level]
+        }
+
+        /** one textured face; hgt scales the height (farmland, water) */
+        fun face(b: Buf, x: Int, y: Int, z: Int, f: Int, id: Int, hgt: Float, useAo: Boolean) {
+            Atlas.uv(Atlas.tileFor(id, f), tuv)
+            val c = FACE_CORNERS[f]
+            val base = b.verts
+            val ls = FloatArray(4)
+            for (k in 0 until 4) {
+                val px = c[k * 3]; val py = c[k * 3 + 1]; val pz = c[k * 3 + 2]
+                val u = when (f) { 0 -> 1 - pz; 1 -> pz; 2 -> px; 3 -> px; 4 -> px; else -> 1 - px }
+                val v = when (f) { 2 -> pz; 3 -> 1 - pz; else -> 1 - py }
+                ls[k] = SHADE[f] * (if (useAo) aoOf(x, y, z, f, px, py, pz) else 1f)
+                b.vert(x + px.toFloat(), y + py * hgt, z + pz.toFloat(),
+                    tuv[0] + u * (tuv[2] - tuv[0]), tuv[1] + v * (tuv[3] - tuv[1]), ls[k])
+            }
+            if (ls[0] + ls[2] > ls[1] + ls[3]) { b.tri(base + 1, base + 2, base + 3); b.tri(base + 1, base + 3, base) }
+            else { b.tri(base, base + 1, base + 2); b.tri(base, base + 2, base + 3) }
+        }
+
+        fun cross(b: Buf, x: Int, y: Int, z: Int, id: Int) {
+            Atlas.uv(Atlas.tileFor(id, 0), tuv)
+            val pl = arrayOf(floatArrayOf(0f, 0f, 1f, 1f), floatArrayOf(1f, 0f, 0f, 1f)) // x0,z0,x1,z1
+            for (p in pl) for (side in 0..1) {
+                val base = b.verts
+                val x0 = x + p[0]; val z0 = z + p[1]; val x1 = x + p[2]; val z1 = z + p[3]
+                val l = 0.95f
+                b.vert(x0, y.toFloat(), z0, tuv[0], tuv[3], l)
+                b.vert(x1, y.toFloat(), z1, tuv[2], tuv[3], l)
+                b.vert(x1, y + 1f, z1, tuv[2], tuv[1], l)
+                b.vert(x0, y + 1f, z0, tuv[0], tuv[1], l)
+                if (side == 0) { b.tri(base, base + 1, base + 2); b.tri(base, base + 2, base + 3) }
+                else { b.tri(base, base + 2, base + 1); b.tri(base, base + 3, base + 2) }
+            }
+        }
+
+        for (y in 0 until H) for (z in 0 until CS) for (x in 0 until CS) {
             val wx = baseX + x; val wz = baseZ + z
+            val id = g(wx, y, wz)
+            if (id == Blocks.AIR) continue
             if (id == Blocks.WATER) {
-                if (world.get(wx, y + 1, wz) == Blocks.AIR) addFace(wx, y, wz, 2, id, 0.88f)
+                if (g(wx, y + 1, wz) != Blocks.WATER) face(t, wx, y, wz, 2, id, 0.88f, false)
+                for (f in intArrayOf(0, 1, 4, 5)) {
+                    val n = FACE_N[f]
+                    val nb = g(wx + n[0], y + n[1], wz + n[2])
+                    if (nb != Blocks.WATER && !occl(nb)) face(t, wx, y, wz, f, id, 0.88f, false)
+                }
                 continue
             }
-            if (Blocks.thin(id)) {
-                val hgt = when (id) { Blocks.TORCH -> 0.6f; Blocks.TALLGRASS -> 0.7f; else -> 0.5f }
-                val lo = if (id == Blocks.TORCH) 0.43f else if (id == Blocks.TALLGRASS) 0.2f else 0.35f
-                for (f in 0..5) addFace(wx, y, wz, f, id, hgt, lo, 1f - lo, lo, 1f - lo)
+            if (id == Blocks.GLASS) {
+                for (f in 0..5) {
+                    val n = FACE_N[f]
+                    val nb = g(wx + n[0], y + n[1], wz + n[2])
+                    if (nb != Blocks.GLASS && !occl(nb)) face(t, wx, y, wz, f, id, 1f, false)
+                }
                 continue
             }
-            if (!drawAsBlock(id)) continue
-            val hg = when (id) {
-                Blocks.WHEAT0 -> 0.35f; Blocks.WHEAT1 -> 0.6f; Blocks.WHEAT2 -> 0.9f
-                Blocks.FARMLAND -> 0.94f; else -> 1f
+            if (Blocks.thin(id) || id in Blocks.WHEAT0..Blocks.WHEAT2) { cross(o, wx, y, wz, id); continue }
+            val hgt = if (id == Blocks.FARMLAND) 0.94f else 1f
+            for (f in 0..5) {
+                val n = FACE_N[f]
+                val nb = g(wx + n[0], y + n[1], wz + n[2])
+                if (!occl(nb) || (hgt < 1f && f == 2)) face(o, wx, y, wz, f, id, hgt, true)
             }
-            if (!opaque(world.get(wx + 1, y, wz))) addFace(wx, y, wz, 0, id, hg)
-            if (!opaque(world.get(wx - 1, y, wz))) addFace(wx, y, wz, 1, id, hg)
-            if (!opaque(world.get(wx, y + 1, wz))) addFace(wx, y, wz, 2, id, hg)
-            if (!opaque(world.get(wx, y - 1, wz))) addFace(wx, y, wz, 3, id, hg)
-            if (!opaque(world.get(wx, y, wz + 1))) addFace(wx, y, wz, 4, id, hg)
-            if (!opaque(world.get(wx, y, wz - 1))) addFace(wx, y, wz, 5, id, hg)
         }
-        release()
-        if (inds.isEmpty()) { ready = false; return }
-        val vArr = verts.toFloatArray()
-        val iArr = ShortArray(inds.size) { inds[it] }
-        val vb = ByteBuffer.allocateDirect(vArr.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
-        vb.put(vArr).position(0)
-        val ib = ByteBuffer.allocateDirect(iArr.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
-        ib.put(iArr).position(0)
+        upload(opq, o)
+        upload(trn, t)
+    }
+
+    private fun upload(l: Layer, b: Buf) {
+        release(l)
+        if (b.iN == 0) return
+        val vb = ByteBuffer.allocateDirect(b.vn * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+        vb.put(b.v, 0, b.vn).position(0)
+        val ib = ByteBuffer.allocateDirect(b.iN * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+        ib.put(b.i, 0, b.iN).position(0)
         val buf = IntArray(2)
         GLES20.glGenBuffers(2, buf, 0)
-        vbo = buf[0]; ibo = buf[1]
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
-        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, vArr.size * 4, vb, GLES20.GL_STATIC_DRAW)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, ibo)
-        GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, iArr.size * 2, ib, GLES20.GL_STATIC_DRAW)
+        l.vbo = buf[0]; l.ibo = buf[1]
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, l.vbo)
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, b.vn * 4, vb, GLES20.GL_STATIC_DRAW)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, l.ibo)
+        GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, b.iN * 2, ib, GLES20.GL_STATIC_DRAW)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
-        indexCount = iArr.size
-        ready = true
+        l.count = b.iN
     }
 
-    fun draw(aPos: Int, aCol: Int) {
-        if (!ready) return
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, ibo)
-        val stride = 6 * 4
+    /** layer 0 = opaque/cutout, 1 = translucent */
+    fun draw(layer: Int, aPos: Int, aUV: Int, aL: Int) {
+        val l = if (layer == 0) opq else trn
+        if (l.count == 0) return
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, l.vbo)
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, l.ibo)
         GLES20.glEnableVertexAttribArray(aPos)
-        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, stride, 0)
-        GLES20.glEnableVertexAttribArray(aCol)
-        GLES20.glVertexAttribPointer(aCol, 3, GLES20.GL_FLOAT, false, stride, 12)
-        GLES20.glDrawElements(GLES20.GL_TRIANGLES, indexCount, GLES20.GL_UNSIGNED_SHORT, 0)
+        GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 24, 0)
+        GLES20.glEnableVertexAttribArray(aUV)
+        GLES20.glVertexAttribPointer(aUV, 2, GLES20.GL_FLOAT, false, 24, 12)
+        GLES20.glEnableVertexAttribArray(aL)
+        GLES20.glVertexAttribPointer(aL, 1, GLES20.GL_FLOAT, false, 24, 20)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, l.count, GLES20.GL_UNSIGNED_SHORT, 0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
-    fun release() {
-        if (vbo != 0) {
-            GLES20.glDeleteBuffers(2, intArrayOf(vbo, ibo), 0)
-            vbo = 0; ibo = 0
+    private fun release(l: Layer) {
+        if (l.vbo != 0) {
+            GLES20.glDeleteBuffers(2, intArrayOf(l.vbo, l.ibo), 0)
+            l.vbo = 0; l.ibo = 0
         }
-        ready = false
+        l.count = 0
     }
+
+    fun release() { release(opq); release(trn) }
 }

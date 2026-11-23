@@ -30,7 +30,13 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     private var uTint = 0
     private var uLight = 0
     private var aPos = 0
-    private var aCol = 0
+    private var aUV = 0
+    private var aL = 0
+    private var uFog = 0
+    private var uFogR = 0
+    private var uTex = 0
+    private var uAlpha = 0
+    private var atlasTex = 0
     private val vp = FloatArray(16)
     private val mvp = FloatArray(16)
     private val model = FloatArray(16)
@@ -160,24 +166,45 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_CULL_FACE)
         val vs = """
             uniform mat4 uMVP;
-            uniform vec3 uTint;
-            uniform float uLight;
             attribute vec3 aPos;
-            attribute vec3 aCol;
-            varying vec3 vCol;
-            void main(){ vCol=aCol*uTint*uLight; gl_Position=uMVP*vec4(aPos,1.0); }
+            attribute vec2 aUV;
+            attribute float aL;
+            varying vec2 vUV;
+            varying float vL;
+            varying float vD;
+            void main(){ vUV=aUV; vL=aL; gl_Position=uMVP*vec4(aPos,1.0); vD=gl_Position.w; }
         """.trimIndent()
         val fs = """
             precision mediump float;
-            varying vec3 vCol;
-            void main(){ gl_FragColor=vec4(vCol,1.0); }
+            uniform sampler2D uTex;
+            uniform vec3 uTint;
+            uniform float uLight;
+            uniform float uAlpha;
+            uniform vec3 uFog;
+            uniform vec2 uFogR;
+            varying vec2 vUV;
+            varying float vL;
+            varying float vD;
+            void main(){
+                vec4 t=texture2D(uTex,vUV);
+                if(t.a<0.5) discard;
+                vec3 c=t.rgb*uTint*vL*uLight;
+                float f=clamp((vD-uFogR.x)/(uFogR.y-uFogR.x),0.0,1.0);
+                gl_FragColor=vec4(mix(c,uFog,f),t.a*uAlpha);
+            }
         """.trimIndent()
         program = link(vs, fs)
         uMvp = GLES20.glGetUniformLocation(program, "uMVP")
         uTint = GLES20.glGetUniformLocation(program, "uTint")
         uLight = GLES20.glGetUniformLocation(program, "uLight")
+        uAlpha = GLES20.glGetUniformLocation(program, "uAlpha")
+        uFog = GLES20.glGetUniformLocation(program, "uFog")
+        uFogR = GLES20.glGetUniformLocation(program, "uFogR")
+        uTex = GLES20.glGetUniformLocation(program, "uTex")
         aPos = GLES20.glGetAttribLocation(program, "aPos")
-        aCol = GLES20.glGetAttribLocation(program, "aCol")
+        aUV = GLES20.glGetAttribLocation(program, "aUV")
+        aL = GLES20.glGetAttribLocation(program, "aL")
+        atlasTex = Atlas.upload()
         cube.init()
         meshes.clear() // GL buffers are gone after a context loss
         if (!ready) {
@@ -423,7 +450,8 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     // ---------- drawing ----------
     private fun drawWorld() {
         val k = dayK * (1f - 0.35f * rain)
-        GLES20.glClearColor(0.05f + 0.48f * k, 0.07f + 0.74f * k, 0.12f + 0.80f * k, 1f)
+        val sr = 0.05f + 0.48f * k; val sg = 0.07f + 0.74f * k; val sb = 0.12f + 0.80f * k
+        GLES20.glClearColor(sr, sg, sb, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         player.lookDir(look)
         val ex = player.x; val ey = player.eyeY(); val ez = player.z
@@ -448,10 +476,29 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         GLES20.glUseProgram(program)
         GLES20.glUniform1f(uLight, (0.35f + 0.65f * k).coerceAtLeast(0.3f))
         GLES20.glUniform3f(uTint, 1f, 1f, 1f)
+        GLES20.glUniform1f(uAlpha, 1f)
+        val fr = renderDist.coerceIn(2, 8) * 16f
+        GLES20.glUniform3f(uFog, sr, sg, sb)
+        GLES20.glUniform2f(uFogR, fr * (if (rain > 0.02f) 0.35f else 0.55f), fr * 0.95f)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, atlasTex)
+        GLES20.glUniform1i(uTex, 0)
         GLES20.glUniformMatrix4fv(uMvp, 1, false, vp, 0)
-        for (m in meshes.values) m.draw(aPos, aCol)
+        for (m in meshes.values) m.draw(0, aPos, aUV, aL)
         for (m in mobs.mobs.toList()) drawMob(m)
         if (camView != 0) drawPlayer()
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        GLES20.glDepthMask(false)
+        GLES20.glDisable(GLES20.GL_CULL_FACE)
+        GLES20.glUniformMatrix4fv(uMvp, 1, false, vp, 0)
+        GLES20.glUniform3f(uTint, 1f, 1f, 1f)
+        GLES20.glUniform1f(uAlpha, 0.72f)
+        for (m in meshes.values) m.draw(1, aPos, aUV, aL)
+        GLES20.glUniform1f(uAlpha, 1f)
+        GLES20.glDepthMask(true)
+        GLES20.glEnable(GLES20.GL_CULL_FACE)
+        GLES20.glDisable(GLES20.GL_BLEND)
         if (rain > 0.02f) drawRain()
     }
 
@@ -469,7 +516,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             Matrix.multiplyMM(mvp, 0, vp, 0, model, 0)
             GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0)
             GLES20.glUniform3f(uTint, 0.67f, 0.77f, 1f)
-            cube.draw(aPos, aCol)
+            cube.draw(aPos, aUV, aL)
         }
     }
 
@@ -501,7 +548,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         val h = if (m.hurt > 0f) 1f else 0f
         val d = if (m.big) 0.72f else 1f
         GLES20.glUniform3f(uTint, d * c[0] + h * 0.8f, d * c[1] * (1f - h * 0.6f), d * c[2] * (1f - h * 0.6f))
-        cube.draw(aPos, aCol)
+        cube.draw(aPos, aUV, aL)
     }
 
     private fun drawMob(m: Mob) {
