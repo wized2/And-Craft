@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- left face (dirt) -->
+    <path android:fillColor="#8B5A2B" android:pathData="M54,92 L30,78 L30,50 L54,64 Z"/>
+    <path android:fillColor="#6F4520" android:pathData="M36,70 h6 v5 h-6 z M45,80 h5 v4 h-5 z M33,58 h5 v5 h-5 z"/>
+    <!-- right face (dirt, darker) -->
+    <path android:fillColor="#704520" android:pathData="M54,92 L78,78 L78,50 L54,64 Z"/>
+    <path android:fillColor="#573616" android:pathData="M64,72 h6 v5 h-6 z M58,82 h5 v4 h-5 z M71,60 h5 v5 h-5 z"/>
+    <!-- grass top -->
+    <path android:fillColor="#5DA83A" android:pathData="M54,36 L78,50 L54,64 L30,50 Z"/>
+    <path android:fillColor="#4A9030" android:pathData="M48,48 h6 v5 h-6 z M58,54 h6 v4 h-6 z M40,50 h5 v4 h-5 z"/>
+    <!-- grass overhang -->
+    <path android:fillColor="#4C8F32" android:pathData="M30,50 L54,64 L54,70 L30,56 Z"/>
+    <path android:fillColor="#3B7326" android:pathData="M54,64 L78,50 L78,56 L54,70 Z"/>
+</vector>
