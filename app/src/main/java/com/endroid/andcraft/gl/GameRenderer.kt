@@ -19,6 +19,10 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     private val prefs = ctx.getSharedPreferences("andcraft", Context.MODE_PRIVATE)
     lateinit var world: World
     lateinit var player: Player
+    private lateinit var fx: Fx
+    private var flashT = 0f
+    private var boltT = 12f
+    private var lavaT = 0f
     val mobs = MobSystem()
     @Volatile var ready = false
     private var spawn = intArrayOf(0, 40, 0)
@@ -111,6 +115,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     private fun loadOrCreate() {
         val seed = if (prefs.contains("seed")) prefs.getLong("seed", 0L) else System.currentTimeMillis() and 0xffffffL
         world = World(seed)
+        fx = Fx(world)
         val ed = prefs.getString("edits", "") ?: ""
         if (ed.isNotEmpty()) world.decodeEdits(ed)
         Machines.decode(prefs.getString("machines", "") ?: "")
@@ -263,6 +268,12 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             if (v != null && announced.add(v.cx.toLong() shl 32 xor (v.cz.toLong() and 0xffffffffL))) toast("You found a village!", 2.5f)
         }
         mobs.update(world, player, dayK, dt, dayNo)
+        fx.update(dt, player.x, player.z)
+        for (b in mobs.booms.toList()) explode(b[0], b[1], b[2], b[3], b[4])
+        mobs.booms.clear()
+        for (b in fx.booms.toList()) explode(b[0], b[1], b[2], b[3], b[4])
+        fx.booms.clear()
+        updateLava(dt)
         updateWeather(dt)
         player.lookDir(look)
         if (breaking) doBreak(dt) else resetMine()
@@ -289,7 +300,53 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             if (on) toast("It starts to rain...", 2f) else if (rain > 0.5f) toast("The rain stops", 1.8f)
         }
         rain += (rainTarget - rain) * min(1f, dt * 0.5f)
+        flashT = (flashT - dt * 2f).coerceAtLeast(0f)
+        if (rain > 0.8f) {
+            boltT -= dt
+            if (boltT <= 0f) { boltT = 8f + Math.random().toFloat() * 22f; flashT = 1f }
+        }
         if (abs(rainTarget - rain) < 0.01f) rain = rainTarget
+    }
+
+    private fun explode(cx: Float, cy: Float, cz: Float, r: Float, pdmg: Float) {
+        fx.explodeBlocks(cx, cy, cz, r) { b ->
+            if (!player.creative && Math.hypot((player.x - cx).toDouble(), (player.z - cz).toDouble()) < 10.0) {
+                val d = drops(b)
+                if (d > 0) player.give(d, 1)
+            }
+        }
+        val pd = Math.sqrt(((player.x - cx) * (player.x - cx) + (player.y + 1f - cy) * (player.y + 1f - cy) + (player.z - cz) * (player.z - cz)).toDouble()).toFloat()
+        if (pd < r * 2f) {
+            player.hurt(Math.max(1, Math.round((1f - pd / (r * 2f)) * pdmg)))
+            val dd = Math.max(pd, 0.3f)
+            player.vx += (player.x - cx) / dd * 5f
+            player.vz += (player.z - cz) / dd * 5f
+        }
+        val it = mobs.mobs.iterator()
+        while (it.hasNext()) {
+            val m = it.next()
+            val d = Math.sqrt(((m.x - cx) * (m.x - cx) + (m.y + m.h / 2f - cy) * (m.y + m.h / 2f - cy) + (m.z - cz) * (m.z - cz)).toDouble()).toFloat()
+            if (d < r * 2f) {
+                m.hp -= Math.round((1f - d / (r * 2f)) * pdmg)
+                m.hurt = 0.4f
+                val dd = Math.max(d, 0.3f)
+                m.vx += (m.x - cx) / dd * 6f; m.vz += (m.z - cz) / dd * 6f; m.vy = 5f
+                if (m.hp <= 0) { mobDrops(m); it.remove() }
+            }
+        }
+        flashT = max(flashT, 0.5f)
+    }
+
+    private fun updateLava(dt: Float) {
+        if (player.hp <= 0 || player.creative) return
+        val fxp = floor(player.x).toInt(); val fzp = floor(player.z).toInt()
+        val a = world.get(fxp, floor(player.y + 0.2f).toInt(), fzp)
+        val b = world.get(fxp, floor(player.y + 1f).toInt(), fzp)
+        if (a == Blocks.LAVA || b == Blocks.LAVA) {
+            player.vy *= Math.pow(0.02, dt.toDouble()).toFloat()
+            lavaT -= dt
+            if (lavaT <= 0f) { lavaT = 0.5f; player.hurt(4); toast("You are burning!", 0.6f) }
+        }
     }
 
     private fun resetMine() { mx = Int.MIN_VALUE; mineT = 0f; mineP = 0f }
@@ -300,10 +357,10 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         if (h <= 0f) return 0.05f
         val need = Blocks.needPick(id)
         val canH = need == 0 || player.pick >= need
-        val sp = floatArrayOf(1f, 2f, 4f)
+        val sp = floatArrayOf(1f, 2f, 4f, 6f, 8f)
         var speed = 1f
-        if (need > 0 && player.pick > 0) speed = sp[player.pick.coerceIn(0, 2)]
-        if (Blocks.axeBlock(id) && player.axe > 0) speed = sp[player.axe.coerceIn(0, 2)]
+        if (need > 0 && player.pick > 0) speed = sp[player.pick.coerceIn(0, 4)]
+        if (Blocks.axeBlock(id) && player.axe > 0) speed = sp[player.axe.coerceIn(0, 4)]
         return max(0.05f, h * (if (canH) 1.5f else 5f) / speed)
     }
 
@@ -313,8 +370,10 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         Blocks.BRICK -> if (player.pick >= 1) Blocks.BRICK else 0
         Blocks.FURNACE -> if (player.pick >= 1) Blocks.FURNACE else 0
         Blocks.GOLD_ORE -> if (player.pick >= 2) Blocks.GOLD_ORE else 0
+        Blocks.IRON_ORE -> if (player.pick >= 2) Blocks.IRON_ORE else 0
+        Blocks.DIAMOND_ORE -> if (player.pick >= 3) Blocks.DIAMOND else 0
         Blocks.GRASS, Blocks.FARMLAND, Blocks.PATH -> Blocks.DIRT
-        Blocks.LEAVES -> if (Math.random() < 0.05) Blocks.APPLE else 0
+        Blocks.LEAVES -> { val r = Math.random(); if (r < 0.06) Blocks.SAPLING else if (r < 0.07) Blocks.APPLE else 0 }
         Blocks.TALLGRASS -> if (Math.random() < 0.25) Blocks.SEEDS else 0
         Blocks.ROSE, Blocks.DANDELION, Blocks.SNOW -> 0
         else -> id
@@ -336,7 +395,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 atkCd = 0.5f
                 if (mob.hp <= 0) {
                     mobDrops(mob)
-                    if (mob.type == MobType.ZOMBIE) { player.kills++; if (mob.big) player.brutes++ }
+                    if (mob.type == MobType.ZOMBIE) { player.kills++; if (mob.big) player.brutes++ } else if (mob.type == MobType.CREEPER) player.kills++
                     mobs.mobs.remove(mob)
                 }
             }
@@ -344,7 +403,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         }
         val hit = Raycast.cast(world, player.x, player.eyeY(), player.z, look[0], look[1], look[2],
             if (player.creative) 6f else 4.5f)
-        if (hit == null || hit.y <= 0) { resetMine(); return }
+        if (hit == null || hit.y <= 0 || hit.id == Blocks.LAVA) { resetMine(); return }
         if (hit.x == mx && hit.y == my && hit.z == mz) mineT += dt
         else { mx = hit.x; my = hit.y; mz = hit.z; mineT = 0f }
         val need = breakTime(hit.id)
@@ -375,6 +434,8 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             MobType.COW -> { player.give(Blocks.RAW_BEEF, r(1, 3)); player.give(Blocks.LEATHER, r(0, 2)) }
             MobType.SHEEP -> { if (!m.sheared) player.give(Blocks.WOOL, 1); player.give(Blocks.RAW_MUTTON, r(1, 2)) }
             MobType.ZOMBIE -> player.give(Blocks.ROTTEN, r(0, 2))
+            MobType.CREEPER -> player.give(Blocks.GUNPOWDER, r(0, 2))
+            MobType.CHICKEN -> player.give(Blocks.RAW_CHICKEN, 1)
             MobType.VILLAGER -> player.give(Blocks.EMERALD, 1)
         }
     }
@@ -396,6 +457,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         }
         val hit = Raycast.cast(world, player.x, player.eyeY(), player.z, look[0], look[1], look[2], 5f) ?: return
         if (hit.id == Blocks.BED) { useBed(hit); return }
+        if (hit.id == Blocks.TNT && (player.creative || player.count(Blocks.FLINT) > 0)) { fx.ignite(hit.x, hit.y, hit.z, 3f); toast("Ssss...", 1f); return }
         if (hit.id == Blocks.FURNACE) { uiRequest = UiReq("furnace", hit.x, hit.y, hit.z); return }
         if (hit.id == Blocks.CHEST) { uiRequest = UiReq("chest", hit.x, hit.y, hit.z); return }
         if (Farming.tryUse(world, player, hit)) return
@@ -411,6 +473,10 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         val bx = floor(player.x).toInt(); val bz = floor(player.z).toInt()
         val by0 = floor(player.y).toInt(); val by1 = floor(player.y + 1.7f).toInt()
         if (Blocks.solid(id) && px == bx && pz == bz && py in by0..by1) return
+        if (id == Blocks.SAPLING) {
+            val bl = world.get(px, py - 1, pz)
+            if (bl != Blocks.GRASS && bl != Blocks.DIRT) { toast("Plant on grass or dirt", 1f); return }
+        }
         if (player.take(id)) world.set(px, py, pz, id) else toast("No ${Blocks.name(id)} left")
     }
 
@@ -462,7 +528,10 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     // ---------- drawing ----------
     private fun drawWorld() {
         val k = dayK * (1f - 0.35f * rain)
-        val sr = 0.05f + 0.48f * k; val sg = 0.07f + 0.74f * k; val sb = 0.12f + 0.80f * k
+        val fl = flashT.coerceIn(0f, 1f) * 0.85f
+        val sr = 0.05f + 0.48f * k + (1f - (0.05f + 0.48f * k)) * fl
+        val sg = 0.07f + 0.74f * k + (1f - (0.07f + 0.74f * k)) * fl
+        val sb = 0.12f + 0.80f * k + (1f - (0.12f + 0.80f * k)) * fl
         GLES20.glClearColor(sr, sg, sb, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         player.lookDir(look)
@@ -654,7 +723,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
 
     // body parts: center (relative to feet), size, colour
     private fun part(m: Mob, ox: Float, oy: Float, oz: Float, sx: Float, sy: Float, sz: Float, c: FloatArray) {
-        val sc = if (m.big) 1.3f else 1f
+        val sc = if (m.big) 1.3f else if (m.type == MobType.CREEPER && m.fuse > 0f) 1f + m.fuse * 0.25f + kotlin.math.sin(m.fuse * 30f) * 0.06f else 1f
         Matrix.setIdentityM(model, 0)
         Matrix.translateM(model, 0, m.x, m.y, m.z)
         Matrix.rotateM(model, 0, Math.toDegrees(m.yaw.toDouble()).toFloat(), 0f, 1f, 0f)
@@ -665,7 +734,8 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0)
         val h = if (m.hurt > 0f) 1f else 0f
         val d = if (m.big) 0.72f else 1f
-        GLES20.glUniform3f(uTint, d * c[0] + h * 0.8f, d * c[1] * (1f - h * 0.6f), d * c[2] * (1f - h * 0.6f))
+        val wf = if (m.type == MobType.CREEPER && m.fuse > 0f && (m.fuse * 8f).toInt() % 2 == 0) 0.6f else 0f
+        GLES20.glUniform3f(uTint, wf + d * c[0] + h * 0.8f, wf + d * c[1] * (1f - h * 0.6f), wf + d * c[2] * (1f - h * 0.6f))
         cube.draw(aPos, aUV, aL)
     }
 
@@ -682,6 +752,23 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 part(m, 0f, 1.58f, 0f, 0.42f, 0.42f, 0.42f, c)
                 part(m, -0.38f, 1.15f + ar * 0.3f, -0.25f, 0.18f, 0.18f, 0.6f, c)
                 part(m, 0.38f, 1.15f + ar * 0.3f, -0.25f, 0.18f, 0.18f, 0.6f, c)
+            }
+            MobType.CREEPER -> {
+                val dark = floatArrayOf(0.05f, 0.08f, 0.05f)
+                for (lx in floatArrayOf(-0.13f, 0.13f)) for (lz in floatArrayOf(-0.18f, 0.18f))
+                    part(m, lx, 0.25f, lz, 0.22f, 0.5f, 0.22f, c)
+                part(m, 0f, 0.9f, 0f, 0.5f, 0.75f, 0.3f, c)
+                part(m, 0f, 1.5f, 0f, 0.5f, 0.5f, 0.5f, c)
+                part(m, -0.12f, 1.55f, -0.26f, 0.1f, 0.12f, 0.03f, dark)
+                part(m, 0.12f, 1.55f, -0.26f, 0.1f, 0.12f, 0.03f, dark)
+                part(m, 0f, 1.4f, -0.26f, 0.12f, 0.2f, 0.03f, dark)
+            }
+            MobType.CHICKEN -> {
+                part(m, 0f, 0.5f, 0f, 0.4f, 0.35f, 0.55f, c)
+                part(m, 0f, 0.8f, -0.28f, 0.22f, 0.28f, 0.22f, c)
+                part(m, 0f, 0.78f, -0.44f, 0.1f, 0.08f, 0.14f, floatArrayOf(0.91f, 0.6f, 0.17f))
+                part(m, 0f, 0.68f, -0.4f, 0.06f, 0.1f, 0.06f, floatArrayOf(0.8f, 0.13f, 0.13f))
+                for (lx in floatArrayOf(-0.1f, 0.1f)) part(m, lx, 0.15f, 0f, 0.06f, 0.3f, 0.06f, floatArrayOf(0.91f, 0.69f, 0.19f))
             }
             MobType.VILLAGER -> {
                 val robe = when (m.prof) {

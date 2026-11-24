@@ -14,6 +14,8 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
     /** player-made changes per chunk (index -> block id); saved and re-applied after generation */
     val edits = HashMap<Long, HashMap<Int, Int>>()
     val meshDirty = HashSet<Long>()
+    /** called after every set(): x, y, z, new id */
+    var onChange: ((Int, Int, Int, Int) -> Unit)? = null
     /** villager spawn spots created by village generation: x, y, z, profession */
     val villagerSpawns = ArrayList<FloatArray>()
     private val villagesDone = HashSet<Long>()
@@ -25,6 +27,20 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
         n = (n xor (n ushr 13)) * 1274126177
         n = n xor (n ushr 16)
         return (n and 0x7fffffff) / 2147483647f
+    }
+
+    private fun smooth(t: Float) = t * t * (3f - 2f * t)
+    /** 3D value noise 0..1 */
+    private fun n3(x: Float, y: Float, z: Float): Float {
+        val x0 = floor(x).toInt(); val y0 = floor(y).toInt(); val z0 = floor(z).toInt()
+        val fx = smooth(x - x0); val fy = smooth(y - y0); val fz = smooth(z - z0)
+        fun v(a: Int, b: Int, c: Int) = hash(a * 31 + c * 7, b * 17 + c * 13, 77)
+        fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
+        val x00 = lerp(v(x0, y0, z0), v(x0 + 1, y0, z0), fx)
+        val x10 = lerp(v(x0, y0 + 1, z0), v(x0 + 1, y0 + 1, z0), fx)
+        val x01 = lerp(v(x0, y0, z0 + 1), v(x0 + 1, y0, z0 + 1), fx)
+        val x11 = lerp(v(x0, y0 + 1, z0 + 1), v(x0 + 1, y0 + 1, z0 + 1), fx)
+        return lerp(lerp(x00, x10, fy), lerp(x01, x11, fy), fz)
     }
 
     fun heightAt(x: Int, z: Int): Int {
@@ -53,12 +69,25 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
                 }
             }
             for (y in h + 1..SEA) d[idx(x, y, z)] = Blocks.WATER.toByte()
+            // tunnels and caverns
+            val lim = if (beach) h - 4 else h
+            for (y in 3..lim) {
+                val a = n3(wx * 0.06f, y * 0.09f, wz * 0.06f)
+                val b2 = n3(wx * 0.06f + 100f, y * 0.09f + 50f, wz * 0.06f + 100f)
+                if (Math.abs(a - 0.5f) < 0.05f && Math.abs(b2 - 0.5f) < 0.05f) d[idx(x, y, z)] = 0
+            }
+            if (!beach) for (y in 5 until h - 4) {
+                if (n3(wx * 0.045f + 300f, y * 0.07f, wz * 0.045f - 200f) > 0.78f) d[idx(x, y, z)] = 0
+            }
+            for (y in 1..5) if (d[idx(x, y, z)].toInt() == 0 && y < h - 1) d[idx(x, y, z)] = Blocks.LAVA.toByte()
             // ores
             for (y in 1 until h - 2) {
                 if (d[idx(x, y, z)].toInt() != Blocks.STONE) continue
                 val r = hash(wx * 3 + y, wz * 5 + y * 7, 1)
-                if (r < 0.003f && y < 20) d[idx(x, y, z)] = Blocks.GOLD_ORE.toByte()
-                else if (r < 0.02f && y < 36) d[idx(x, y, z)] = Blocks.COAL_ORE.toByte()
+                if (r < 0.0015f && y < 9) d[idx(x, y, z)] = Blocks.DIAMOND_ORE.toByte()
+                else if (r < 0.0045f && y < 14) d[idx(x, y, z)] = Blocks.GOLD_ORE.toByte()
+                else if (r < 0.012f && y < 18) d[idx(x, y, z)] = Blocks.IRON_ORE.toByte()
+                else if (r < 0.03f && y < 36) d[idx(x, y, z)] = Blocks.COAL_ORE.toByte()
             }
             // tall grass and flowers
             if (!beach && !snow && h + 1 < H && h > SEA + 1) {
@@ -249,6 +278,7 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
         if (lx == CS - 1) meshDirty.add(key(cx + 1, cz))
         if (lz == 0) meshDirty.add(key(cx, cz - 1))
         if (lz == CS - 1) meshDirty.add(key(cx, cz + 1))
+        onChange?.invoke(x, y, z, id)
     }
 
     fun takeDirty(): Set<Long> {

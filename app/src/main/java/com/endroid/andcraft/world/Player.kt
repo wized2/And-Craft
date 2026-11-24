@@ -80,14 +80,14 @@ class Player(var x: Float, var y: Float, var z: Float) {
         }
     }
 
-    fun weaponDmg(): Int = intArrayOf(2, 4, 5)[sword.coerceIn(0, 2)]
+    fun weaponDmg(): Int = intArrayOf(2, 4, 5, 6, 7)[sword.coerceIn(0, 4)]
 
     fun addExh(v: Float) { if (!creative) exh += v }
 
     /** damage from a mob (armor helps) */
     fun hurt(n: Int) {
         if (creative || hp <= 0) return
-        val red = when (armor) { 1 -> 0.28f; 2 -> 0.44f; else -> 0f }
+        val red = when (armor) { 1 -> 0.28f; 2 -> 0.44f; 3 -> 0.6f; 4 -> 0.8f; else -> 0f }
         hp = max(0, hp - max(1, Math.round(n * (1f - red))))
         hurtFlash = 1f
         addExh(0.1f)

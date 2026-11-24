@@ -45,16 +45,28 @@ object Blocks {
     const val WOOL = 26
     const val LEATHER = 27
     const val GOLDEN_APPLE = 28
+    const val IRON_ORE = 44
+    const val DIAMOND_ORE = 45
+    const val IRON_INGOT = 46
+    const val DIAMOND = 47
+    const val TNT = 48
+    const val GRAVEL = 49
+    const val LAVA = 50
+    const val SAPLING = 51
+    const val GUNPOWDER = 52
+    const val RAW_CHICKEN = 53
+    const val COOKED_CHICKEN = 54
+    const val FLINT = 55
 
     fun solid(id: Int): Boolean =
-        id != AIR && id != WATER && id != LEAVES && id != WHEAT0 && id != WHEAT1 && id != WHEAT2 && !thin(id)
+        id != AIR && id != WATER && id != LAVA && id != LEAVES && id != WHEAT0 && id != WHEAT1 && id != WHEAT2 && !thin(id)
 
     fun plant(id: Int): Boolean = id in WHEAT0..WHEAT2 || id == LEAVES || thin(id)
 
     /** small decorations drawn as thin posts */
-    fun thin(id: Int): Boolean = id == ROSE || id == DANDELION || id == TALLGRASS || id == TORCH
+    fun thin(id: Int): Boolean = id == ROSE || id == DANDELION || id == TALLGRASS || id == TORCH || id == SAPLING
 
-    fun placeable(id: Int): Boolean = id in 1..8 || id == GLASS || id == SNOW || id == BED || id == FURNACE || id == CHEST || id == TORCH
+    fun placeable(id: Int): Boolean = id in 1..8 || id == GLASS || id == SNOW || id == BED || id == FURNACE || id == CHEST || id == TORCH || id == TNT || id == GRAVEL || id == SAPLING
 
     fun name(id: Int): String = when (id) {
         GRASS -> "Grass"; DIRT -> "Dirt"; STONE -> "Stone"; LOG -> "Log"
@@ -68,6 +80,9 @@ object Blocks {
         RAW_PORK -> "Raw Porkchop"; COOKED_PORK -> "Cooked Porkchop"; RAW_BEEF -> "Raw Beef"; STEAK -> "Steak"
         RAW_MUTTON -> "Raw Mutton"; COOKED_MUTTON -> "Cooked Mutton"; APPLE -> "Apple"; ROTTEN -> "Rotten Flesh"
         WOOL -> "Wool"; LEATHER -> "Leather"; GOLDEN_APPLE -> "Golden Apple"
+        IRON_ORE -> "Iron Ore"; DIAMOND_ORE -> "Diamond Ore"; IRON_INGOT -> "Iron Ingot"; DIAMOND -> "Diamond"
+        TNT -> "TNT"; GRAVEL -> "Gravel"; LAVA -> "Lava"; SAPLING -> "Sapling"; GUNPOWDER -> "Gunpowder"
+        RAW_CHICKEN -> "Raw Chicken"; COOKED_CHICKEN -> "Cooked Chicken"; FLINT -> "Flint & Steel"
         else -> "Air"
     }
 
@@ -92,6 +107,12 @@ object Blocks {
         FURNACE -> floatArrayOf(0.45f, 0.45f, 0.47f)
         CHEST -> floatArrayOf(0.62f, 0.42f, 0.18f)
         TORCH -> floatArrayOf(1f, 0.85f, 0.35f)
+        IRON_ORE -> floatArrayOf(0.8f, 0.65f, 0.55f)
+        DIAMOND_ORE -> floatArrayOf(0.35f, 0.85f, 0.88f)
+        TNT -> floatArrayOf(0.8f, 0.17f, 0.13f)
+        GRAVEL -> floatArrayOf(0.5f, 0.48f, 0.47f)
+        LAVA -> floatArrayOf(0.95f, 0.45f, 0.1f)
+        SAPLING -> floatArrayOf(0.2f, 0.55f, 0.17f)
         WHEAT0 -> floatArrayOf(0.40f, 0.55f, 0.20f)
         WHEAT1 -> floatArrayOf(0.60f, 0.60f, 0.25f)
         WHEAT2 -> floatArrayOf(0.82f, 0.72f, 0.25f)
@@ -108,7 +129,10 @@ object Blocks {
         LOG, PLANKS, BRICK -> 2f
         LEAVES, SNOW, BED -> 0.2f
         GLASS -> 0.3f
-        COAL_ORE, GOLD_ORE -> 3f
+        COAL_ORE, GOLD_ORE, IRON_ORE, DIAMOND_ORE -> 3f
+        GRAVEL -> 0.6f
+        TNT, SAPLING -> 0f
+        LAVA -> 999f
         PATH -> 0.65f
         ROSE, DANDELION, TALLGRASS, TORCH -> 0f
         FURNACE -> 3.5f
@@ -120,28 +144,29 @@ object Blocks {
     /** pickaxe tier needed to get a drop: 0 none, 1 wood, 2 stone */
     fun needPick(id: Int): Int = when (id) {
         STONE, COAL_ORE, BRICK, FURNACE -> 1
-        GOLD_ORE -> 2
+        GOLD_ORE, IRON_ORE -> 2
+        DIAMOND_ORE -> 3
         else -> 0
     }
 
-    fun isItem(id: Int): Boolean = id in 18..28 || id == SEEDS || id == BREAD || id == EMERALD || id == STICK || id == SHEARS
+    fun isItem(id: Int): Boolean = id in 18..28 || id in 46..47 || id in 52..55 || id == SEEDS || id == BREAD || id == EMERALD || id == STICK || id == SHEARS
 
     fun axeBlock(id: Int): Boolean = id == LOG || id == PLANKS || id == BED || id == CHEST
 
     /** hunger restored (food points) */
     fun foodValue(id: Int): Int = when (id) {
         BREAD -> 5; COOKED_PORK, STEAK -> 8; COOKED_MUTTON -> 6
-        RAW_PORK, RAW_BEEF -> 3; RAW_MUTTON -> 2; APPLE, ROTTEN -> 4; GOLDEN_APPLE -> 4
+        RAW_PORK, RAW_BEEF -> 3; RAW_MUTTON -> 2; RAW_CHICKEN -> 2; COOKED_CHICKEN -> 6; APPLE, ROTTEN -> 4; GOLDEN_APPLE -> 4
         else -> 0
     }
 
     fun satValue(id: Int): Float = when (id) {
         BREAD -> 6f; COOKED_PORK, STEAK -> 12.8f; COOKED_MUTTON -> 9.6f
-        RAW_PORK, RAW_BEEF -> 1.8f; RAW_MUTTON -> 1.2f; APPLE -> 2.4f; ROTTEN -> 0.8f; GOLDEN_APPLE -> 9.6f
+        RAW_PORK, RAW_BEEF -> 1.8f; RAW_MUTTON -> 1.2f; RAW_CHICKEN -> 1.2f; COOKED_CHICKEN -> 7.2f; APPLE -> 2.4f; ROTTEN -> 0.8f; GOLDEN_APPLE -> 9.6f
         else -> 0f
     }
 
-    val EAT_ORDER = intArrayOf(STEAK, COOKED_PORK, COOKED_MUTTON, BREAD, APPLE, RAW_BEEF, RAW_PORK, RAW_MUTTON, ROTTEN)
+    val EAT_ORDER = intArrayOf(STEAK, COOKED_PORK, COOKED_MUTTON, COOKED_CHICKEN, BREAD, APPLE, RAW_BEEF, RAW_PORK, RAW_MUTTON, RAW_CHICKEN, ROTTEN)
 
     private val DIRTC = floatArrayOf(0.52f, 0.37f, 0.23f)
     private val SHADE = floatArrayOf(0f, 0f, 1f, 0.6f, 0.8f, 0.8f, 0.75f)

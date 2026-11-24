@@ -124,10 +124,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showBackpack() {
         val p = game.renderer.player
-        val tier = arrayOf("none", "wooden", "stone")
+        val tier = arrayOf("none", "wooden", "stone", "iron", "diamond")
         val sb = StringBuilder()
-        sb.append("Pickaxe: ${tier[p.pick.coerceIn(0, 2)]}\nAxe: ${tier[p.axe.coerceIn(0, 2)]}\nSword: ${tier[p.sword.coerceIn(0, 2)]}\n")
-        sb.append("Armor: ${arrayOf("none", "leather", "gold")[p.armor.coerceIn(0, 2)]}\n\n")
+        sb.append("Pickaxe: ${tier[p.pick.coerceIn(0, 4)]}\nAxe: ${tier[p.axe.coerceIn(0, 4)]}\nSword: ${tier[p.sword.coerceIn(0, 4)]}\n")
+        sb.append("Armor: ${arrayOf("none", "leather", "gold", "iron", "diamond")[p.armor.coerceIn(0, 4)]}\n\n")
         var any = false
         for (id in 1 until p.inv.size) if (p.inv[id] > 0) { sb.append("${Blocks.name(id)} ×${p.inv[id]}\n"); any = true }
         if (!any) sb.append("Empty")

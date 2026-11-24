@@ -26,6 +26,8 @@ object Atlas {
         const val farmland = 20; const val wheat0 = 21; const val wheat1 = 22; const val wheat2 = 23
         const val path = 24; const val emerald = 25; const val furnace = 26; const val chest = 27
         const val torch = 28
+        const val iron = 29; const val diamond = 30; const val tntSide = 31; const val tntTop = 32
+        const val gravel = 33; const val lava = 34; const val sapling = 35
     }
 
     val pixels = IntArray(SIZE * SIZE)
@@ -166,6 +168,28 @@ object Atlas {
         paint(TI.torch) { x, y ->
             if (x < 6 || x > 9) null else if (y > 11) vr(255, 200, 80, 20) else vr(120, 80, 40, 14)
         }
+        paint(TI.iron, ore(c(214, 170, 140)))
+        paint(TI.diamond, ore(c(90, 226, 232)))
+        paint(TI.tntSide) { x, y ->
+            if (y in 5..10) { if (x % 4 < 2 && y > 5 && y < 10) vr(40, 40, 40, 10) else vr(226, 224, 214, 12) }
+            else vr(200, 44, 34, 20)
+        }
+        paint(TI.tntTop) { x, y ->
+            val d = max(abs(x - 7.5f), abs(y - 7.5f))
+            if (d < 1.6f) vr(30, 30, 30, 8) else vr(186, 150, 100, 18)
+        }
+        paint(TI.gravel) { _, _ ->
+            val r = rnd()
+            if (r < 0.25f) vr(96, 92, 92, 20) else if (r < 0.5f) vr(150, 146, 144, 24) else vr(124, 120, 118, 26)
+        }
+        paint(TI.lava) { _, _ ->
+            val r = rnd()
+            if (r < 0.18f) vr(255, 214, 70, 30) else if (r < 0.55f) vr(240, 120, 24, 40) else vr(206, 70, 10, 40)
+        }
+        paint(TI.sapling) { x, y ->
+            if ((x == 7 || x == 8) && y >= 9) vr(100, 70, 40, 14)
+            else { val d = hypot(x - 7.5f, y - 6f); if (d < 4.2f && rnd() > 0.15f) vr(54, 140, 44, 30) else null }
+        }
         paint(WHITE) { _, _ -> c(255, 255, 255) }
         val bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
         bmp.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
@@ -205,6 +229,8 @@ object Atlas {
         14 -> TI.flowerR; 15 -> TI.flowerY; 16 -> TI.tall
         29 -> TI.farmland; 30 -> TI.wheat0; 31 -> TI.wheat1; 32 -> TI.wheat2; 38 -> TI.path
         33 -> TI.wheat0; 34 -> TI.wheat2; 35 -> TI.flowerR; 36 -> TI.flowerY; 37 -> TI.emerald
+        44 -> TI.iron; 45 -> TI.diamond; 49 -> TI.gravel; 50 -> TI.lava; 51 -> TI.sapling
+        48 -> if (f == 2 || f == 3) TI.tntTop else TI.tntSide
         39 -> TI.furnace; 40 -> TI.chest; 41 -> TI.torch; 42 -> TI.planks; 43 -> TI.stone
         else -> 0
     }
