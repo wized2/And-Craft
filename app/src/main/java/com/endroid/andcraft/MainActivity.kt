@@ -1,6 +1,15 @@
 package com.endroid.andcraft
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
+import android.widget.EditText
+import android.widget.Toast
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -53,8 +62,9 @@ class MainActivity : AppCompatActivity() {
                 findViewById<TextView>(R.id.toast).text = if (r.toastT > 0f) r.toast else ""
                 val stats = findViewById<View>(R.id.stats)
                 stats.visibility = if (p.creative) View.GONE else View.VISIBLE
-                findViewById<TextView>(R.id.hearts).text = "♥".repeat((p.hp + 1) / 2)
-                findViewById<TextView>(R.id.foodbar).text = "●".repeat((p.food + 1) / 2)
+                val armorTxt = if (p.armor > 0) "  🛡-${intArrayOf(0, 28, 44, 60, 80)[p.armor.coerceIn(0, 4)]}%" else ""
+                findViewById<TextView>(R.id.hearts).text = meter(p.hp, "♥", 0xFFE53935.toInt(), armorTxt)
+                findViewById<TextView>(R.id.foodbar).text = meter(p.food, "●", 0xFFE0952B.toInt(), "")
                 val mp = r.mineP
                 findViewById<TextView>(R.id.crosshair).text = if (mp > 0f) "+\n${(mp * 100).toInt()}%" else "+"
                 refreshHotbar()
@@ -66,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        Sfx.init(this)
         game = findViewById(R.id.gameView)
         val r = game.renderer
         bindHold(R.id.btnBreak, { r.breaking = true }, { r.breaking = false })
@@ -81,12 +92,22 @@ class MainActivity : AppCompatActivity() {
                 if (r.ready) {
                     val m = r.player.eat()
                     r.toast(if (m != null) "Ate $m" else "Nothing to eat")
+                    if (m != null) Sfx.play("eat")
                 }
             }
         }
         findViewById<MaterialButton>(R.id.btnCraft).setOnClickListener { showCraft() }
         findViewById<MaterialButton>(R.id.btnMenu).setOnClickListener { showMenu() }
         handler.post(tick)
+    }
+
+    /** 10 icons, filled by value/2 (half steps count as full), the rest dimmed */
+    private fun meter(v: Int, sym: String, on: Int, tail: String): SpannableString {
+        val s = SpannableString(sym.repeat(10) + tail)
+        val full = (v + 1) / 2
+        s.setSpan(ForegroundColorSpan(on), 0, full.coerceIn(0, 10) * sym.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        s.setSpan(ForegroundColorSpan(0x66FFFFFF), full.coerceIn(0, 10) * sym.length, 10 * sym.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return s
     }
 
     private fun showDialog(b: AlertDialog.Builder) {
@@ -116,6 +137,7 @@ class MainActivity : AppCompatActivity() {
                 game.queueEvent {
                     val ok = Crafting.craft(r.player, rec[i])
                     r.toast(if (ok) "Crafted ${rec[i].name}" else "Missing materials")
+                    if (ok) Sfx.play("craft")
                     runOnUiThread { showCraft() }
                 }
             }
@@ -143,6 +165,9 @@ class MainActivity : AppCompatActivity() {
             "Settings",
             "Back to spawn",
             "New world",
+            "Commands",
+            "Screenshot",
+            "Copy seed (${r.world.seed})",
             "Close"
         )
         showDialog(AlertDialog.Builder(this).setTitle("And Craft").setItems(items) { _, i ->
@@ -157,6 +182,13 @@ class MainActivity : AppCompatActivity() {
                 2 -> showSettings()
                 3 -> game.queueEvent { r.player.respawn(r.world.findSpawn()); r.toast("Teleported to spawn") }
                 4 -> confirmNewWorld()
+                5 -> showCommands()
+                6 -> { r.shotReq = true }
+                7 -> {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("seed", r.world.seed.toString()))
+                    Toast.makeText(this, "Seed copied", Toast.LENGTH_SHORT).show()
+                }
             }
         })
     }
@@ -189,6 +221,10 @@ class MainActivity : AppCompatActivity() {
         labels.add("Add coal (+40s fuel)  [have ${p.count(Blocks.COAL_ORE)}]")
         acts.add {
             if (p.take(Blocks.COAL_ORE)) { f.fuel += 40f; r.toast("Fueled furnace", 1f) } else r.toast("No coal", 1f)
+        }
+        labels.add("Add log as fuel (+15s)  [have ${p.count(Blocks.LOG)}]")
+        acts.add {
+            if (p.take(Blocks.LOG)) { f.fuel += 15f; r.toast("Fueled furnace", 1f) } else r.toast("No logs", 1f)
         }
         for ((raw, out) in Machines.SMELT) {
             if (!p.creative && p.count(raw) <= 0) continue
@@ -240,7 +276,9 @@ class MainActivity : AppCompatActivity() {
             "Field of view: ${r.fov}",
             "Auto-jump: ${if (r.autoJump) "on" else "off"}",
             "Camera: ${views[r.camView.coerceIn(0, 2)]}",
-            "Debug info: ${if (r.showInfo) "on" else "off"}"
+            "Debug info: ${if (r.showInfo) "on" else "off"}",
+            "Sound: ${if (Sfx.on) "on" else "off"}",
+            "Haptics: ${if (Sfx.haptics) "on" else "off"}"
         )
         showDialog(AlertDialog.Builder(this).setTitle("Settings").setItems(items) { _, i ->
             fun <T> next(a: List<T>, cur: T): T = a[(a.indexOf(cur) + 1).mod(a.size)]
@@ -251,6 +289,8 @@ class MainActivity : AppCompatActivity() {
                 3 -> r.autoJump = !r.autoJump
                 4 -> r.camView = (r.camView + 1) % 3
                 5 -> r.showInfo = !r.showInfo
+                6 -> { Sfx.on = !Sfx.on; Sfx.save(this) }
+                7 -> { Sfx.haptics = !Sfx.haptics; Sfx.save(this) }
             }
             r.saveSettings()
             showSettings()
@@ -258,14 +298,47 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmNewWorld() {
+        val input = EditText(this)
+        input.hint = "Seed (blank = random)"
+        input.inputType = android.text.InputType.TYPE_CLASS_NUMBER
         showDialog(AlertDialog.Builder(this).setTitle("New world?")
             .setMessage("This deletes your current world.")
+            .setView(input)
             .setPositiveButton("Delete & restart") { _, _ ->
+                val seed = input.text.toString().trim().toLongOrNull()
                 game.renderer.ready = false
-                getSharedPreferences("andcraft", MODE_PRIVATE).edit().clear().commit()
+                val ed = getSharedPreferences("andcraft", MODE_PRIVATE).edit().clear()
+                if (seed != null) ed.putLong("seed", seed and 0xffffffL)
+                ed.commit()
+                Sfx.save(this)
                 recreate()
             }
             .setNegativeButton("Cancel", null))
+    }
+
+    private fun showCommands() {
+        val r = game.renderer
+        val names = arrayOf("Set day", "Set night", "Clear weather", "Start rain", "Heal and feed",
+            "Iron tool kit", "Diamond tool kit", "Kill all mobs", "TNT x10 + flint & steel", "Jump up 40 blocks", "Spawn a villager")
+        showDialog(AlertDialog.Builder(this).setTitle("Commands").setItems(names) { _, i ->
+            glThen({
+                val p = r.player
+                when (i) {
+                    0 -> r.clock = (Math.floor((r.clock / r.dayLen).toDouble()).toFloat()) * r.dayLen + r.dayLen * 0.1f
+                    1 -> r.clock = (Math.floor((r.clock / r.dayLen).toDouble()).toFloat()) * r.dayLen + r.dayLen * 0.6f
+                    2 -> r.setWeather(false)
+                    3 -> r.setWeather(true)
+                    4 -> { p.hp = 20; p.food = 20; p.sat = 20f }
+                    5 -> { p.pick = 3; p.axe = 3; p.sword = 3; p.armor = 3 }
+                    6 -> { p.pick = 4; p.axe = 4; p.sword = 4; p.armor = 4 }
+                    7 -> r.mobs.mobs.removeAll { it.type != com.endroid.andcraft.world.MobType.VILLAGER }
+                    8 -> { p.give(Blocks.TNT, 10); p.give(Blocks.FLINT, 1) }
+                    9 -> p.y += 40f
+                    10 -> r.mobs.add(com.endroid.andcraft.world.MobType.VILLAGER, p.x + 2f, p.y, p.z, 0)
+                }
+                r.toast("Done: ${names[i]}")
+            }) { }
+        }.setNegativeButton("Close", null))
     }
 
     private fun refreshHotbar() {
@@ -294,7 +367,14 @@ class MainActivity : AppCompatActivity() {
             val tv = bar.getChildAt(i) as TextView
             val id = p.hotbar[i]
             val n = if (p.creative) "∞" else p.count(id).toString()
-            tv.text = Blocks.name(id).take(5) + "\n" + n
+            tv.text = n
+            val ic = Icons.get(id)
+            if (ic != null) {
+                val d = BitmapDrawable(resources, ic)
+                d.setBounds(0, 0, (30 * resources.displayMetrics.density).toInt(), (30 * resources.displayMetrics.density).toInt())
+                d.isFilterBitmap = false
+                tv.setCompoundDrawables(null, d, null, null)
+            } else tv.text = Blocks.name(id).take(5) + "\n" + n
             tv.setBackgroundColor(if (i == p.slot) 0xCCFFFFFF.toInt() else 0x99000000.toInt())
             tv.setTextColor(if (i == p.slot) Color.BLACK else Color.WHITE)
         }

@@ -93,7 +93,7 @@ class MobSystem {
                 MobType.CREEPER -> {
                     if (dist < 24f) { m.dirx = dx / dist; m.dirz = dz / dist; spd = if (m.fuse > 0f) m.spd * 0.3f else m.spd }
                     else { m.dirx = 0f; m.dirz = 0f }
-                    if (dist < 3f && Math.abs(player.y - m.y) < 2.2f && player.hp > 0) m.fuse += dt
+                    if (dist < 3f && Math.abs(player.y - m.y) < 2.2f && player.hp > 0) { if (m.fuse == 0f) com.endroid.andcraft.Sfx.play("hiss"); m.fuse += dt }
                     else m.fuse = (m.fuse - dt * 0.6f).coerceAtLeast(0f)
                     if (m.fuse >= 1.5f) { booms.add(floatArrayOf(m.x, m.y + 0.7f, m.z, 3f, 18f)); it.remove(); continue }
                 }

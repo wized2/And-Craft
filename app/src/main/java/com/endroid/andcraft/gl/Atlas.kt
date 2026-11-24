@@ -30,6 +30,7 @@ object Atlas {
         const val gravel = 33; const val lava = 34; const val sapling = 35
     }
 
+    fun bitmapOrNull(): Bitmap? = bitmap
     val pixels = IntArray(SIZE * SIZE)
     val avg = Array(64) { floatArrayOf(0.5f, 0.5f, 0.5f) }
     private var rs = 987654321L

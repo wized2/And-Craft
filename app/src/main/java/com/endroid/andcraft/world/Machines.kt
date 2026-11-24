@@ -19,7 +19,9 @@ object Machines {
         Blocks.RAW_BEEF to Blocks.STEAK,
         Blocks.RAW_MUTTON to Blocks.COOKED_MUTTON,
         Blocks.GOLD_ORE to Blocks.EMERALD,
-        Blocks.IRON_ORE to Blocks.IRON_INGOT
+        Blocks.IRON_ORE to Blocks.IRON_INGOT,
+        Blocks.SAND to Blocks.GLASS,
+        Blocks.LOG to Blocks.COAL_ORE
     )
 
     fun key(x: Int, y: Int, z: Int) = "$x,$y,$z"

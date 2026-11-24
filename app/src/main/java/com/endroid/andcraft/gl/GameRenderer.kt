@@ -16,6 +16,11 @@ import kotlin.math.min
 class UiReq(val kind: String, val x: Int = 0, val y: Int = 0, val z: Int = 0, val prof: Int = 0)
 
 class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
+    private val appCtx = ctx.applicationContext
+    @Volatile var shotReq = false
+    private var vw = 1
+    private var vh = 1
+    private var thunderT = -1f
     private val prefs = ctx.getSharedPreferences("andcraft", Context.MODE_PRIVATE)
     lateinit var world: World
     lateinit var player: Player
@@ -229,6 +234,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         GLES20.glViewport(0, 0, width, height)
+        vw = width; vh = height
         aspect = width.toFloat() / height.coerceAtLeast(1)
         applyFov()
     }
@@ -244,6 +250,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         if (!paused) step(dt)
         updateMeshes()
         drawWorld()
+        if (shotReq) { shotReq = false; takeShot() }
     }
 
     private fun step(dt: Float) {
@@ -301,11 +308,50 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         }
         rain += (rainTarget - rain) * min(1f, dt * 0.5f)
         flashT = (flashT - dt * 2f).coerceAtLeast(0f)
+        if (thunderT > 0f) { thunderT -= dt; if (thunderT <= 0f) Sfx.play("thunder") }
         if (rain > 0.8f) {
             boltT -= dt
-            if (boltT <= 0f) { boltT = 8f + Math.random().toFloat() * 22f; flashT = 1f }
+            if (boltT <= 0f) { boltT = 8f + Math.random().toFloat() * 22f; flashT = 1f; thunderT = 0.7f + Math.random().toFloat() }
         }
         if (abs(rainTarget - rain) < 0.01f) rain = rainTarget
+    }
+
+    fun setWeather(on: Boolean) { rainTarget = if (on) 1f else 0f; rainT = 60f }
+
+    private fun takeShot() {
+        try {
+            val w = vw; val h = vh
+            val buf = java.nio.ByteBuffer.allocateDirect(w * h * 4).order(java.nio.ByteOrder.nativeOrder())
+            GLES20.glReadPixels(0, 0, w, h, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, buf)
+            val px = IntArray(w * h)
+            buf.rewind()
+            val ib = buf.asIntBuffer()
+            val row = IntArray(w)
+            for (y in 0 until h) {
+                ib.position(y * w); ib.get(row)
+                val dst = (h - 1 - y) * w
+                for (x in 0 until w) {
+                    val v = row[x] // bytes R,G,B,A little-endian -> int 0xAABBGGRR
+                    px[dst + x] = (v and 0xff00ff00.toInt()) or ((v and 0xff) shl 16) or ((v shr 16) and 0xff)
+                }
+            }
+            val bmp = android.graphics.Bitmap.createBitmap(px, w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            val name = "AndCraft_" + System.currentTimeMillis() + ".png"
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                val cv = android.content.ContentValues()
+                cv.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                cv.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                cv.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/AndCraft")
+                val uri = appCtx.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv)
+                if (uri != null) appCtx.contentResolver.openOutputStream(uri)?.use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                toast("Screenshot saved to Pictures/AndCraft", 2f)
+            } else {
+                val dir = appCtx.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)
+                val f = java.io.File(dir, name)
+                java.io.FileOutputStream(f).use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                toast("Screenshot saved: ${f.name}", 2f)
+            }
+        } catch (e: Exception) { toast("Screenshot failed", 2f) }
     }
 
     private fun explode(cx: Float, cy: Float, cz: Float, r: Float, pdmg: Float) {
@@ -335,6 +381,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             }
         }
         flashT = max(flashT, 0.5f)
+        Sfx.play("boom"); Sfx.vib(120)
     }
 
     private fun updateLava(dt: Float) {
@@ -387,6 +434,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 var dmg = if (player.creative) 30 else player.weaponDmg()
                 if (!player.onGround && player.vy < -1f && !player.inWater) dmg = (dmg * 1.5f).toInt()
                 mob.hp -= dmg
+                Sfx.play("hit")
                 mob.hurt = 0.4f
                 mob.stun = 0.35f; mob.wind = 0f // hitting a zombie interrupts its swing
                 val kb = if (mob.big) 4f else 7f
@@ -424,6 +472,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             world.set(hit.x, hit.y + 1, hit.z, Blocks.AIR)
         if (d > 0) player.give(d, 1)
         player.addExh(0.005f)
+        Sfx.play("break", 0.8f); Sfx.vib(8)
     }
 
     private fun mobDrops(m: Mob) {
@@ -477,7 +526,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             val bl = world.get(px, py - 1, pz)
             if (bl != Blocks.GRASS && bl != Blocks.DIRT) { toast("Plant on grass or dirt", 1f); return }
         }
-        if (player.take(id)) world.set(px, py, pz, id) else toast("No ${Blocks.name(id)} left")
+        if (player.take(id)) { world.set(px, py, pz, id); Sfx.play("place", 0.8f); Sfx.vib(10) } else toast("No ${Blocks.name(id)} left")
     }
 
     private fun useBed(hit: Hit) {

@@ -91,6 +91,7 @@ class Player(var x: Float, var y: Float, var z: Float) {
         hp = max(0, hp - max(1, Math.round(n * (1f - red))))
         hurtFlash = 1f
         addExh(0.1f)
+        com.endroid.andcraft.Sfx.play("hurt"); com.endroid.andcraft.Sfx.vib(40)
     }
 
     /** returns message or null when nothing eaten */

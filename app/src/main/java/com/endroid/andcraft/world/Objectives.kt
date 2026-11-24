@@ -17,6 +17,10 @@ object Objectives {
         Objective("Craft a Bed (3 wool from sheep + 3 planks) and sleep") { p, _ -> p.sleeps >= 1 },
         Objective("Defeat 3 zombies") { p, _ -> p.kills >= 3 },
         Objective("Craft armor (leather from cows, or gold)") { p, _ -> p.armor >= 1 },
-        Objective("Defeat a Brute zombie (from day 3)") { p, _ -> p.brutes >= 1 }
+        Objective("Defeat a Brute zombie (from day 3)") { p, _ -> p.brutes >= 1 },
+        Objective("Mine iron ore and smelt an ingot (furnace)") { p, _ -> p.count(Blocks.IRON_INGOT) >= 1 || p.pick >= 3 },
+        Objective("Craft an Iron Pickaxe") { p, _ -> p.pick >= 3 },
+        Objective("Find a diamond deep underground") { p, _ -> p.count(Blocks.DIAMOND) >= 1 || p.pick >= 4 },
+        Objective("Craft TNT (gunpowder from creepers) and light it") { p, _ -> p.count(Blocks.TNT) >= 1 }
     )
 }
