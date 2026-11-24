@@ -26,6 +26,9 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     private val meshes = HashMap<Long, ChunkMesh>()
     private val announced = HashSet<Long>()
     private val cube = CubeMesh()
+    private val crackCube = CubeMesh(true)
+    private var crackTex = 0
+    private var uUV = 0
     private var program = 0
     private var uMvp = 0
     private var uTint = 0
@@ -167,13 +170,14 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_CULL_FACE)
         val vs = """
             uniform mat4 uMVP;
+            uniform vec4 uUV;
             attribute vec3 aPos;
             attribute vec2 aUV;
             attribute float aL;
             varying vec2 vUV;
             varying float vL;
             varying float vD;
-            void main(){ vUV=aUV; vL=aL; gl_Position=uMVP*vec4(aPos,1.0); vD=gl_Position.w; }
+            void main(){ vUV=aUV*uUV.xy+uUV.zw; vL=aL; gl_Position=uMVP*vec4(aPos,1.0); vD=gl_Position.w; }
         """.trimIndent()
         val fs = """
             precision mediump float;
@@ -202,11 +206,14 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         uFog = GLES20.glGetUniformLocation(program, "uFog")
         uFogR = GLES20.glGetUniformLocation(program, "uFogR")
         uTex = GLES20.glGetUniformLocation(program, "uTex")
+        uUV = GLES20.glGetUniformLocation(program, "uUV")
         aPos = GLES20.glGetAttribLocation(program, "aPos")
         aUV = GLES20.glGetAttribLocation(program, "aUV")
         aL = GLES20.glGetAttribLocation(program, "aL")
         atlasTex = Atlas.upload()
+        crackTex = Atlas.uploadCrack()
         cube.init()
+        crackCube.init()
         meshes.clear() // GL buffers are gone after a context loss
         if (!ready) {
             loadOrCreate()
@@ -488,6 +495,12 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, atlasTex)
         GLES20.glUniform1i(uTex, 0)
+        GLES20.glUniform4f(uUV, 1f, 1f, 0f, 0f)
+        drawSky(k, sr, sg, sb, ex, ey, ez)
+        GLES20.glUniform3f(uFog, sr, sg, sb)
+        GLES20.glUniform2f(uFogR, fr * (if (rain > 0.02f) 0.35f else 0.55f), fr * 0.95f)
+        GLES20.glUniform1f(uLight, (0.35f + 0.65f * k).coerceAtLeast(0.3f))
+        GLES20.glUniform3f(uTint, 1f, 1f, 1f)
         GLES20.glUniformMatrix4fv(uMvp, 1, false, vp, 0)
         for (m in meshes.values) m.draw(0, aPos, aUV, aL)
         for (m in mobs.mobs.toList()) drawMob(m)
@@ -501,10 +514,110 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         GLES20.glUniform1f(uAlpha, 0.72f)
         for (m in meshes.values) m.draw(1, aPos, aUV, aL)
         GLES20.glUniform1f(uAlpha, 1f)
+        drawTarget()
         GLES20.glDepthMask(true)
         GLES20.glEnable(GLES20.GL_CULL_FACE)
         GLES20.glDisable(GLES20.GL_BLEND)
         if (rain > 0.02f) drawRain()
+    }
+
+    private fun boxAt(x: Float, y: Float, z: Float, sx: Float, sy: Float, sz: Float, mesh: CubeMesh = cube) {
+        Matrix.setIdentityM(model, 0)
+        Matrix.translateM(model, 0, x, y, z)
+        Matrix.scaleM(model, 0, sx, sy, sz)
+        Matrix.multiplyMM(mvp, 0, vp, 0, model, 0)
+        GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0)
+        mesh.draw(aPos, aUV, aL)
+    }
+
+    /** sun, moon, stars and drifting clouds; drawn without depth writes around the camera */
+    private fun drawSky(k: Float, sr: Float, sg: Float, sb: Float, ex: Float, ey: Float, ez: Float) {
+        GLES20.glDepthMask(false)
+        GLES20.glDisable(GLES20.GL_CULL_FACE)
+        GLES20.glUniform2f(uFogR, 1e6f, 2e6f)
+        GLES20.glUniform1f(uLight, 1f)
+        val a = clock / dayLen * (Math.PI * 2).toFloat()
+        val sx = kotlin.math.cos(a); val sy = kotlin.math.sin(a)
+        val dist = 100f
+        val vis = (1f - 0.7f * rain)
+        // stars
+        val star = ((0.4f - dayK) / 0.4f).coerceIn(0f, 1f) * vis
+        if (star > 0.02f) {
+            GLES20.glUniform3f(uTint, star, star, star * 0.95f)
+            for (i in 0 until 90) {
+                val u = hashF(i, 1) * 6.2832f
+                val v = 0.12f + hashF(i, 2) * 0.88f
+                val r = kotlin.math.sqrt(1f - v * v)
+                val dx = kotlin.math.cos(u) * r; val dz = kotlin.math.sin(u) * r
+                boxAt(ex + dx * 95f, ey + v * 95f, ez + dz * 95f, 0.9f, 0.9f, 0.9f)
+            }
+        }
+        // sun and moon
+        if (sy > -0.25f) {
+            GLES20.glUniform3f(uTint, 1.5f * vis + 0.2f, 1.4f * vis + 0.2f, 0.9f * vis + 0.2f)
+            boxAt(ex + sx * dist - 7f, ey + sy * dist - 7f, ez + 30f - 7f, 14f, 14f, 14f)
+        }
+        if (sy < 0.25f) {
+            GLES20.glUniform3f(uTint, 0.95f, 0.97f, 1.1f)
+            boxAt(ex - sx * dist - 5f, ey - sy * dist - 5f, ez - 30f - 5f, 10f, 10f, 10f)
+        }
+        // clouds
+        val cy = 46f
+        val br = (0.35f + 0.65f * k) * (1f - 0.3f * rain)
+        GLES20.glUniform3f(uTint, br, br, br * 1.02f)
+        val off = timeAcc * 1.4f
+        val cs = 14f
+        val gx0 = kotlin.math.floor((ex - off) / cs).toInt() - 7
+        val gz0 = kotlin.math.floor(ez / cs).toInt() - 7
+        for (gx in gx0 until gx0 + 15) for (gz in gz0 until gz0 + 15) {
+            if (hashF(gx * 31 + 7, gz * 17 + 3) > 0.34f + 0.2f * rain) continue
+            boxAt(gx * cs + off, cy, gz * cs, cs, 2.2f, cs)
+        }
+        GLES20.glEnable(GLES20.GL_CULL_FACE)
+        GLES20.glDepthMask(true)
+    }
+
+    private fun hashF(a: Int, b: Int): Float {
+        var n = a * 374761393 + b * 668265263
+        n = (n xor (n ushr 13)) * 1274126177
+        n = n xor (n ushr 16)
+        return (n and 0x7fffffff) / 2147483647f
+    }
+
+    /** outline of the targeted block and the crack overlay while mining */
+    private fun drawTarget() {
+        if (mx == Int.MIN_VALUE) {
+            player.lookDir(look)
+            val hit = Raycast.cast(world, player.x, player.eyeY(), player.z, look[0], look[1], look[2], if (player.creative) 6f else 4.5f)
+            if (hit != null && hit.y > 0) drawOutline(hit.x, hit.y, hit.z)
+            return
+        }
+        drawOutline(mx, my, mz)
+        val stage = (mineP * 10f).toInt().coerceIn(0, 9)
+        if (mineP > 0.02f) {
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, crackTex)
+            GLES20.glUniform4f(uUV, 0.1f, 1f, stage * 0.1f, 0f)
+            GLES20.glUniform3f(uTint, 1f, 1f, 1f)
+            GLES20.glUniform1f(uLight, 1f)
+            boxAt(mx - 0.003f, my - 0.003f, mz - 0.003f, 1.006f, 1.006f, 1.006f, crackCube)
+            GLES20.glUniform4f(uUV, 1f, 1f, 0f, 0f)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, atlasTex)
+        }
+    }
+
+    private fun drawOutline(bx: Int, by: Int, bz: Int) {
+        GLES20.glUniform3f(uTint, 0.02f, 0.02f, 0.02f)
+        GLES20.glUniform1f(uLight, 1f)
+        GLES20.glUniform1f(uAlpha, 0.8f)
+        val t = 0.022f; val o = -0.006f; val l = 1.012f
+        val x = bx.toFloat(); val y = by.toFloat(); val z = bz.toFloat()
+        for (i in 0..1) for (j in 0..1) {
+            val a = o + i * (1f - 2 * o - t); val b = o + j * (1f - 2 * o - t)
+            boxAt(x + a, y + o, z + b, t, l, t)
+            boxAt(x + o, y + a, z + b, l, t, t)
+            boxAt(x + a, y + b, z + o, t, t, l)
+        }
+        GLES20.glUniform1f(uAlpha, 1f)
     }
 
     private fun drawRain() {

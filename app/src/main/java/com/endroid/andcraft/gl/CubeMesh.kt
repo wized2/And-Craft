@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /** Unit cube (0..1) with baked per-face shading, used for mob body parts. */
-class CubeMesh {
+class CubeMesh(private val crack: Boolean = false) {
     private var vbo = 0
     private var ibo = 0
 
@@ -29,7 +29,8 @@ class CubeMesh {
             val base = (f * 4).toShort()
             for (c in 0 until 4) {
                 v[vi++] = faces[f][c * 3]; v[vi++] = faces[f][c * 3 + 1]; v[vi++] = faces[f][c * 3 + 2]
-                v[vi++] = wu; v[vi++] = wv; v[vi++] = shade[f]
+                if (crack) { v[vi++] = if (c >= 2) 1f else 0f; v[vi++] = if (c == 0 || c == 3) 1f else 0f; v[vi++] = 1f }
+                else { v[vi++] = wu; v[vi++] = wv; v[vi++] = shade[f] }
             }
             idx[ii++] = base; idx[ii++] = (base + 1).toShort(); idx[ii++] = (base + 2).toShort()
             idx[ii++] = base; idx[ii++] = (base + 2).toShort(); idx[ii++] = (base + 3).toShort()
