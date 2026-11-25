@@ -32,6 +32,17 @@ class Player(var x: Float, var y: Float, var z: Float) {
     var armor = 0
     var autoJump = true
     var kills = 0
+    var xp = 0
+    var xpLvl = 0
+    fun xpNeed() = 8 + xpLvl * 5
+    /** returns true when a level was gained (heals 2 hearts) */
+    fun addXp(n: Int): Boolean {
+        if (creative || n <= 0) return false
+        xp += n
+        var up = false
+        while (xp >= xpNeed()) { xp -= xpNeed(); xpLvl++; hp = Math.min(20, hp + 4); up = true }
+        return up
+    }
     var brutes = 0
     var ate = 0
     var sleeps = 0

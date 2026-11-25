@@ -480,6 +480,8 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     private fun breakBlock(hit: Hit) {
         if (Farming.harvest(world, player, hit.x, hit.y, hit.z, hit.id)) return
         val d = drops(hit.id)
+        val oreXp = when (hit.id) { Blocks.DIAMOND_ORE -> 7; Blocks.GOLD_ORE -> 4; Blocks.IRON_ORE -> 3; Blocks.COAL_ORE -> 2; else -> 0 }
+        if (oreXp > 0 && player.addXp(oreXp)) toast("Level ${player.xpLvl}!", 1.4f)
         world.set(hit.x, hit.y, hit.z, Blocks.AIR)
         if (hit.id == Blocks.FURNACE) Machines.furnaces.remove(Machines.key(hit.x, hit.y, hit.z))
         val above = world.get(hit.x, hit.y + 1, hit.z)
@@ -493,6 +495,8 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     private fun mobDrops(m: Mob) {
         if (player.creative) return
         val r = { a: Int, b: Int -> a + (Math.random() * (b - a + 1)).toInt() }
+        val gain = when (m.type) { MobType.ZOMBIE -> if (m.big) 9 else 5; MobType.CREEPER -> 6; MobType.VILLAGER, MobType.GOLEM, MobType.WOLF -> 0; else -> 2 }
+        if (player.addXp(gain)) toast("Level ${player.xpLvl}!", 1.4f)
         when (m.type) {
             MobType.PIG -> player.give(Blocks.RAW_PORK, r(1, 3))
             MobType.COW -> { player.give(Blocks.RAW_BEEF, r(1, 3)); player.give(Blocks.LEATHER, r(0, 2)) }

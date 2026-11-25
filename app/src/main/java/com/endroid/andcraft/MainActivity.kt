@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
                 val icon = if (r.dayK > 0.55f) "☀" else if (r.dayK < 0.3f) "☾" else "◐"
                 findViewById<TextView>(R.id.hudDay).text = "$icon $day · Day $dayNo · %02d:%02d".format(hh, mm)
                 val tierN = arrayOf("Fist", "Wood Sword", "Stone Sword", "Iron Sword", "Diamond Sword")
-                findViewById<TextView>(R.id.hudCombat).text = if (p.creative) "Creative" else "⚔ ${tierN[p.sword.coerceIn(0, 4)]} · ${p.kills} kills"
+                findViewById<TextView>(R.id.hudCombat).text = if (p.creative) "Creative" else "⚔ ${tierN[p.sword.coerceIn(0, 4)]} · ${p.kills} kills · XP ${p.xpLvl} (${p.xp}/${p.xpNeed()})"
                 info.visibility = if (r.showInfo) View.VISIBLE else View.GONE
                 info.text = "${r.fps} fps | ${p.x.toInt()}, ${p.y.toInt()}, ${p.z.toInt()} | seed ${r.world.seed}"
                 val q = findViewById<TextView>(R.id.quest)
