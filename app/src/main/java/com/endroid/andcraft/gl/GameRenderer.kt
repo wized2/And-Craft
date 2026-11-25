@@ -267,7 +267,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         Machines.tick(dt)
         // villagers from freshly generated villages
         if (world.villagerSpawns.isNotEmpty()) {
-            for (v in world.villagerSpawns.toList()) mobs.add(MobType.VILLAGER, v[0], v[1], v[2], v[3].toInt())
+            for (v in world.villagerSpawns.toList()) mobs.add(if (v[3].toInt() == 9) MobType.GOLEM else MobType.VILLAGER, v[0], v[1], v[2], v[3].toInt())
             world.villagerSpawns.clear()
         }
         // announce a village only when really close to one
@@ -435,6 +435,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 var dmg = if (player.creative) 30 else player.weaponDmg()
                 if (!player.onGround && player.vy < -1f && !player.inWater) dmg = (dmg * 1.5f).toInt()
                 mob.hp -= dmg
+                if (mob.type == MobType.WOLF && !mob.tamed) mob.aggro = true
                 Sfx.play("hit")
                 mob.hurt = 0.4f
                 mob.stun = 0.35f; mob.wind = 0f // hitting a zombie interrupts its swing
@@ -487,13 +488,21 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             MobType.CREEPER -> player.give(Blocks.GUNPOWDER, r(0, 2))
             MobType.CHICKEN -> player.give(Blocks.RAW_CHICKEN, 1)
             MobType.VILLAGER -> player.give(Blocks.EMERALD, 1)
+            MobType.WOLF -> {}
+            MobType.GOLEM -> { player.give(Blocks.IRON_INGOT, r(3, 5)); player.give(Blocks.ROSE, r(0, 2)) }
         }
+        if (m.type == MobType.ZOMBIE && Math.random() < 0.3) player.give(Blocks.BONE, 1)
     }
 
     private fun doPlace() {
         // villagers and sheep first
         val mob = mobs.hit(player, look)
         if (mob != null) {
+            if (mob.type == MobType.WOLF && !mob.tamed && player.selected() == Blocks.BONE) {
+                if (!player.creative) player.take(Blocks.BONE, 1)
+                if (Math.random() < 0.4) { mob.tamed = true; mob.aggro = false; toast("Wolf tamed!", 1.5f) } else toast("The wolf is still wild...", 1.2f)
+                return
+            }
             if (mob.type == MobType.VILLAGER) { uiRequest = UiReq("trade", prof = mob.prof); return }
             if (mob.type == MobType.SHEEP && !mob.sheared) {
                 if (!player.creative && player.selected() != Blocks.SHEARS && player.axe < 1) {
@@ -829,6 +838,29 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 part(m, 0f, 0.8f, 0f, 0.55f, 1.2f, 0.34f, robe)
                 part(m, 0f, 1.6f, 0f, 0.4f, 0.5f, 0.4f, skin)
                 part(m, 0f, 1.5f, -0.26f, 0.12f, 0.2f, 0.12f, skin)
+            }
+            MobType.WOLF -> {
+                val dark = floatArrayOf(0.6f, 0.58f, 0.55f)
+                part(m, 0f, 0.55f, 0f, 0.3f, 0.3f, 0.6f, c)
+                part(m, 0f, 0.7f, -0.38f, 0.3f, 0.28f, 0.26f, c)
+                part(m, 0f, 0.65f, -0.55f, 0.14f, 0.12f, 0.1f, dark)
+                part(m, -0.1f, 0.88f, -0.38f, 0.07f, 0.1f, 0.05f, dark)
+                part(m, 0.1f, 0.88f, -0.38f, 0.07f, 0.1f, 0.05f, dark)
+                part(m, 0f, 0.62f, 0.4f, 0.08f, 0.08f, 0.35f, c)
+                for (lx in floatArrayOf(-0.1f, 0.1f)) for (lz in floatArrayOf(-0.22f, 0.22f))
+                    part(m, lx, 0.2f, lz, 0.1f, 0.4f, 0.1f, c)
+                if (m.tamed) part(m, 0f, 0.7f, -0.2f, 0.34f, 0.08f, 0.1f, floatArrayOf(0.85f, 0.1f, 0.1f))
+                else if (m.aggro) part(m, 0f, 0.7f, -0.55f, 0.04f, 0.04f, 0.04f, floatArrayOf(1f, 0.1f, 0.1f))
+            }
+            MobType.GOLEM -> {
+                val vine = floatArrayOf(0.35f, 0.5f, 0.3f)
+                for (lx in floatArrayOf(-0.25f, 0.25f)) part(m, lx, 0.5f, 0f, 0.4f, 1f, 0.4f, c)
+                part(m, 0f, 1.5f, 0f, 0.95f, 0.9f, 0.5f, c)
+                part(m, 0f, 2.2f, -0.05f, 0.4f, 0.4f, 0.4f, c)
+                part(m, 0f, 2.1f, -0.3f, 0.1f, 0.25f, 0.1f, floatArrayOf(0.5f, 0.45f, 0.4f))
+                part(m, -0.65f, 1.4f, 0f, 0.3f, 1.3f, 0.35f, c)
+                part(m, 0.65f, 1.4f, 0f, 0.3f, 1.3f, 0.35f, c)
+                part(m, 0.3f, 1.6f, -0.26f, 0.2f, 0.5f, 0.04f, vine)
             }
             MobType.PIG -> {
                 part(m, 0f, 0.55f, 0f, 0.55f, 0.45f, 0.9f, c)

@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
                 val info = findViewById<TextView>(R.id.hudInfo)
                 info.visibility = if (r.showInfo) View.VISIBLE else View.GONE
                 info.text = "${r.fps} fps | ${p.x.toInt()}, ${p.y.toInt()}, ${p.z.toInt()}\n" +
-                    "${if (p.creative) "Creative" else "Survival"} · $day $dayNo · seed ${r.world.seed}"
+                    "${if (p.creative) "Creative" else "Survival"} · $day $dayNo · %02d:%02d · seed ${r.world.seed}".format(((r.clock / r.dayLen * 24f + 6f) % 24f).toInt(), (((r.clock / r.dayLen * 24f * 60f) % 60f)).toInt())
                 val q = findViewById<TextView>(R.id.quest)
                 val oi = r.objIdx
                 if (!p.creative && oi < Objectives.list.size) {

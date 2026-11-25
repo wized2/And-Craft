@@ -27,7 +27,7 @@ object Atlas {
         const val path = 24; const val emerald = 25; const val furnace = 26; const val chest = 27
         const val torch = 28
         const val iron = 29; const val diamond = 30; const val tntSide = 31; const val tntTop = 32
-        const val gravel = 33; const val lava = 34; const val sapling = 35
+        const val gravel = 33; const val lava = 34; const val sapling = 35; const val ladder = 36
     }
 
     fun bitmapOrNull(): Bitmap? = bitmap
@@ -191,6 +191,10 @@ object Atlas {
             if ((x == 7 || x == 8) && y >= 9) vr(100, 70, 40, 14)
             else { val d = hypot(x - 7.5f, y - 6f); if (d < 4.2f && rnd() > 0.15f) vr(54, 140, 44, 30) else null }
         }
+        paint(TI.ladder) { x, y ->
+            if (x == 3 || x == 4 || x == 11 || x == 12) vr(130, 92, 52, 14)
+            else if ((y == 2 || y == 6 || y == 10 || y == 14) && x > 4 && x < 11) vr(150, 108, 62, 14) else null
+        }
         paint(WHITE) { _, _ -> c(255, 255, 255) }
         val bmp = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
         bmp.setPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
@@ -230,7 +234,7 @@ object Atlas {
         14 -> TI.flowerR; 15 -> TI.flowerY; 16 -> TI.tall
         29 -> TI.farmland; 30 -> TI.wheat0; 31 -> TI.wheat1; 32 -> TI.wheat2; 38 -> TI.path
         33 -> TI.wheat0; 34 -> TI.wheat2; 35 -> TI.flowerR; 36 -> TI.flowerY; 37 -> TI.emerald
-        44 -> TI.iron; 45 -> TI.diamond; 49 -> TI.gravel; 50 -> TI.lava; 51 -> TI.sapling
+        44 -> TI.iron; 45 -> TI.diamond; 49 -> TI.gravel; 50 -> TI.lava; 51 -> TI.sapling; 57 -> TI.ladder
         48 -> if (f == 2 || f == 3) TI.tntTop else TI.tntSide
         39 -> TI.furnace; 40 -> TI.chest; 41 -> TI.torch; 42 -> TI.planks; 43 -> TI.stone
         else -> 0

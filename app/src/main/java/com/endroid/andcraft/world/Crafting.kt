@@ -40,6 +40,7 @@ object Crafting {
         Recipe("Iron Armor", mapOf(Blocks.IRON_INGOT to 8), "-60% melee damage", { it.armor >= 3 }) { it.armor = 3 },
         Recipe("Diamond Armor", mapOf(Blocks.DIAMOND to 8), "-80% melee damage", { it.armor >= 4 }) { it.armor = 4 },
         Recipe("Flint & Steel", mapOf(Blocks.IRON_INGOT to 1, Blocks.GRAVEL to 1), "right-click TNT to light it") { it.give(Blocks.FLINT, 1) },
+        Recipe("Ladder x3", mapOf(Blocks.STICK to 7), "hold JUMP to climb") { it.give(Blocks.LADDER, 3) },
         Recipe("TNT", mapOf(Blocks.GUNPOWDER to 5, Blocks.SAND to 4), "5 gunpowder + 4 sand") { it.give(Blocks.TNT, 1) },
         cook(Blocks.RAW_CHICKEN, Blocks.COOKED_CHICKEN, "Chicken"),
         cook(Blocks.RAW_PORK, Blocks.COOKED_PORK, "Porkchops"),

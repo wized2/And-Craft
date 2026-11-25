@@ -57,6 +57,8 @@ object Blocks {
     const val RAW_CHICKEN = 53
     const val COOKED_CHICKEN = 54
     const val FLINT = 55
+    const val BONE = 56
+    const val LADDER = 57
 
     fun solid(id: Int): Boolean =
         id != AIR && id != WATER && id != LAVA && id != LEAVES && id != WHEAT0 && id != WHEAT1 && id != WHEAT2 && !thin(id)
@@ -64,9 +66,9 @@ object Blocks {
     fun plant(id: Int): Boolean = id in WHEAT0..WHEAT2 || id == LEAVES || thin(id)
 
     /** small decorations drawn as thin posts */
-    fun thin(id: Int): Boolean = id == ROSE || id == DANDELION || id == TALLGRASS || id == TORCH || id == SAPLING
+    fun thin(id: Int): Boolean = id == ROSE || id == DANDELION || id == TALLGRASS || id == TORCH || id == SAPLING || id == LADDER
 
-    fun placeable(id: Int): Boolean = id in 1..8 || id == GLASS || id == SNOW || id == BED || id == FURNACE || id == CHEST || id == TORCH || id == TNT || id == GRAVEL || id == SAPLING
+    fun placeable(id: Int): Boolean = id in 1..8 || id == GLASS || id == SNOW || id == BED || id == FURNACE || id == CHEST || id == TORCH || id == TNT || id == GRAVEL || id == SAPLING || id == LADDER
 
     fun name(id: Int): String = when (id) {
         GRASS -> "Grass"; DIRT -> "Dirt"; STONE -> "Stone"; LOG -> "Log"
@@ -82,7 +84,7 @@ object Blocks {
         WOOL -> "Wool"; LEATHER -> "Leather"; GOLDEN_APPLE -> "Golden Apple"
         IRON_ORE -> "Iron Ore"; DIAMOND_ORE -> "Diamond Ore"; IRON_INGOT -> "Iron Ingot"; DIAMOND -> "Diamond"
         TNT -> "TNT"; GRAVEL -> "Gravel"; LAVA -> "Lava"; SAPLING -> "Sapling"; GUNPOWDER -> "Gunpowder"
-        RAW_CHICKEN -> "Raw Chicken"; COOKED_CHICKEN -> "Cooked Chicken"; FLINT -> "Flint & Steel"
+        RAW_CHICKEN -> "Raw Chicken"; COOKED_CHICKEN -> "Cooked Chicken"; FLINT -> "Flint & Steel"; BONE -> "Bone"; LADDER -> "Ladder"
         else -> "Air"
     }
 
@@ -113,6 +115,7 @@ object Blocks {
         GRAVEL -> floatArrayOf(0.5f, 0.48f, 0.47f)
         LAVA -> floatArrayOf(0.95f, 0.45f, 0.1f)
         SAPLING -> floatArrayOf(0.2f, 0.55f, 0.17f)
+        LADDER -> floatArrayOf(0.55f, 0.4f, 0.22f)
         WHEAT0 -> floatArrayOf(0.40f, 0.55f, 0.20f)
         WHEAT1 -> floatArrayOf(0.60f, 0.60f, 0.25f)
         WHEAT2 -> floatArrayOf(0.82f, 0.72f, 0.25f)
@@ -132,6 +135,7 @@ object Blocks {
         COAL_ORE, GOLD_ORE, IRON_ORE, DIAMOND_ORE -> 3f
         GRAVEL -> 0.6f
         TNT, SAPLING -> 0f
+        LADDER -> 0.4f
         LAVA -> 999f
         PATH -> 0.65f
         ROSE, DANDELION, TALLGRASS, TORCH -> 0f
@@ -149,7 +153,7 @@ object Blocks {
         else -> 0
     }
 
-    fun isItem(id: Int): Boolean = id in 18..28 || id in 46..47 || id in 52..55 || id == SEEDS || id == BREAD || id == EMERALD || id == STICK || id == SHEARS
+    fun isItem(id: Int): Boolean = id in 18..28 || id in 46..47 || id in 52..56 || id == SEEDS || id == BREAD || id == EMERALD || id == STICK || id == SHEARS
 
     fun axeBlock(id: Int): Boolean = id == LOG || id == PLANKS || id == BED || id == CHEST
 

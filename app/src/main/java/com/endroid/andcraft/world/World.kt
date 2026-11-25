@@ -243,6 +243,7 @@ class World(val seed: Long = System.currentTimeMillis() and 0xffffffL) {
                 put(i, surf(i, j), j, Blocks.PATH); put(j, surf(j, i), i, Blocks.PATH)
             }
             villagerSpawns.add(floatArrayOf(cx * CS + 4.5f, y0 + 1f, cz * CS + 4.5f, 0f))
+            villagerSpawns.add(floatArrayOf(cx * CS + 10.5f, y0 + 1f, cz * CS + 10.5f, 9f))
         } else if (dx == 0 || dz == 0) {
             for (a in 0 until CS) for (b in 7..8) put(lx(a, b), surf(lx(a, b), lz(a, b)), lz(a, b), Blocks.PATH)
             farm(2, 1)

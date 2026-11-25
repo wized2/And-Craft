@@ -155,6 +155,13 @@ class Player(var x: Float, var y: Float, var z: Float) {
                 }
             }
         }
+        if (!fly) {
+            val lx = floor(x).toInt(); val lz = floor(z).toInt()
+            if (world.get(lx, floor(y + 0.3f).toInt(), lz) == Blocks.LADDER || world.get(lx, floor(y + 1.2f).toInt(), lz) == Blocks.LADDER) {
+                vy = if (jumpHeld) 4.2f else max(vy, -1.2f)
+                fallY = y
+            }
+        }
         moveAxis(world, vx * dt, 0f, 0f)
         moveAxis(world, 0f, 0f, vz * dt)
         moveAxis(world, 0f, vy * dt, 0f)
