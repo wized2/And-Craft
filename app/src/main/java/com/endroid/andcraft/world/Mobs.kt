@@ -36,6 +36,7 @@ class Mob(
     var ft = 0f
     var fuse = 0f
     var shoot = 2f
+    var burnT = 0f
     var tamed = false
     var aggro = false
     var dead = false
@@ -143,7 +144,7 @@ class MobSystem {
                     if (m.fuse >= 1.5f) { booms.add(floatArrayOf(m.x, m.y + 0.7f, m.z, 3f, 18f)); it.remove(); continue }
                 }
                 MobType.SKELETON -> {
-                    if (dayK > 0.5f) { m.hp -= 2.5f * dt; if (m.hp <= 0) { it.remove(); continue } }
+                    if (dayK > 0.5f) { m.shoot -= 0f; m.burnT += 2.5f * dt; if (m.burnT >= 1f) { m.hp -= 1; m.burnT -= 1f }; if (m.hp <= 0) { it.remove(); continue } }
                     if (dist < 24f) {
                         val ux = dx / dist; val uz = dz / dist
                         if (dist < 5f) { m.dirx = -ux; m.dirz = -uz; spd = m.spd }
