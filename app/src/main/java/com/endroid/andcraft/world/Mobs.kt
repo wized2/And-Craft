@@ -6,7 +6,7 @@ import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sin
 
-enum class MobType { ZOMBIE, PIG, COW, SHEEP, VILLAGER, CREEPER, CHICKEN, WOLF, GOLEM }
+enum class MobType { ZOMBIE, PIG, COW, SHEEP, VILLAGER, CREEPER, CHICKEN, WOLF, GOLEM, SKELETON }
 
 class Mob(
     var type: MobType,
@@ -23,6 +23,7 @@ class Mob(
         MobType.CHICKEN -> 4
         MobType.WOLF -> 8
         MobType.GOLEM -> 100
+        MobType.SKELETON -> 20
     }
     var yaw = 0f
     var hurt = 0f
@@ -34,6 +35,7 @@ class Mob(
     var prof = 0
     var ft = 0f
     var fuse = 0f
+    var shoot = 2f
     var tamed = false
     var aggro = false
     var dead = false
@@ -48,8 +50,8 @@ class Mob(
     var dirx = 0f
     var dirz = 0f
     var w = if (type == MobType.GOLEM) 0.7f else 0.35f
-    var h = when (type) { MobType.ZOMBIE, MobType.VILLAGER -> 1.8f; MobType.CREEPER -> 1.7f; MobType.CHICKEN -> 0.7f; MobType.WOLF -> 0.85f; MobType.GOLEM -> 2.7f; else -> 0.9f }
-    var spd = when (type) { MobType.ZOMBIE -> 3.5f; MobType.CREEPER -> 2.7f; MobType.CHICKEN -> 1.0f; MobType.WOLF -> 2.4f; MobType.GOLEM -> 2.2f; else -> 1.1f }
+    var h = when (type) { MobType.ZOMBIE, MobType.VILLAGER, MobType.SKELETON -> 1.8f; MobType.CREEPER -> 1.7f; MobType.CHICKEN -> 0.7f; MobType.WOLF -> 0.85f; MobType.GOLEM -> 2.7f; else -> 0.9f }
+    var spd = when (type) { MobType.ZOMBIE -> 3.5f; MobType.SKELETON -> 1.5f; MobType.CREEPER -> 2.7f; MobType.CHICKEN -> 1.0f; MobType.WOLF -> 2.4f; MobType.GOLEM -> 2.2f; else -> 1.1f }
 
     fun bigify() { big = true; hp = 45; dmg = 5; w = 0.4f; h = 2.3f; spd = 3f }
     fun color(): FloatArray = when (type) {
@@ -62,6 +64,7 @@ class Mob(
         MobType.CHICKEN -> floatArrayOf(0.96f, 0.96f, 0.94f)
         MobType.WOLF -> floatArrayOf(0.85f, 0.83f, 0.8f)
         MobType.GOLEM -> floatArrayOf(0.79f, 0.77f, 0.72f)
+        MobType.SKELETON -> floatArrayOf(0.86f, 0.86f, 0.82f)
     }
 }
 
@@ -74,7 +77,7 @@ class MobSystem {
     private fun nearestHostile(m: Mob, range: Float): Mob? {
         var best: Mob? = null; var bd = range
         for (o in mobs) {
-            if ((o.type != MobType.ZOMBIE && o.type != MobType.CREEPER) || o.dead) continue
+            if ((o.type != MobType.ZOMBIE && o.type != MobType.CREEPER && o.type != MobType.SKELETON) || o.dead) continue
             val d = hypot(o.x - m.x, o.z - m.z)
             if (d < bd && Math.abs(o.y - m.y) < 3f) { bd = d; best = o }
         }
@@ -89,14 +92,30 @@ class MobSystem {
         if (t.hp <= 0) t.dead = true
     }
 
+    class Arrow(var x: Float, var y: Float, var z: Float, val vx: Float, var vy: Float, val vz: Float) { var life = 3f }
+    val arrows = ArrayList<Arrow>()
+
+    private fun updateArrows(world: World, player: Player, dt: Float) {
+        val it = arrows.iterator()
+        while (it.hasNext()) {
+            val a = it.next()
+            a.vy -= 4.9f * dt; a.x += a.vx * dt; a.y += a.vy * dt; a.z += a.vz * dt; a.life -= dt
+            val b = world.get(Math.floor(a.x.toDouble()).toInt(), Math.floor(a.y.toDouble()).toInt(), Math.floor(a.z.toDouble()).toInt())
+            var done = a.life <= 0f || (b != Blocks.AIR && !Blocks.plant(b) && b != Blocks.WATER)
+            if (!done && Math.abs(a.x - player.x) < 0.45f && Math.abs(a.z - player.z) < 0.45f && a.y > player.y && a.y < player.y + 1.8f) { player.hurt(3); done = true }
+            if (done) it.remove()
+        }
+    }
+
     fun update(world: World, player: Player, dayK: Float, dt: Float, day: Int = 0) {
+        updateArrows(world, player, dt)
         spawnT -= dt
         if (spawnT <= 0f) {
             spawnT = 2f
             val night = dayK < 0.32f
-            val zc = mobs.count { it.type == MobType.ZOMBIE || it.type == MobType.CREEPER }
+            val zc = mobs.count { it.type == MobType.ZOMBIE || it.type == MobType.CREEPER || it.type == MobType.SKELETON }
             val pc = mobs.size - zc
-            if (!player.creative && night && zc < 5) trySpawn(world, player, if (Math.random() < 0.25) MobType.CREEPER else MobType.ZOMBIE, day >= 2)
+            if (!player.creative && night && zc < 5) trySpawn(world, player, run { val q = Math.random(); if (q < 0.2) MobType.CREEPER else if (q < 0.45) MobType.SKELETON else MobType.ZOMBIE }, day >= 2)
             else if (!night && pc < 8) {
                 val t = when ((Math.random() * 4).toInt()) {
                     0 -> MobType.PIG; 1 -> MobType.COW; 2 -> MobType.SHEEP; else -> if (Math.random() < 0.15 && mobs.none { it.type == MobType.WOLF }) MobType.WOLF else MobType.CHICKEN
@@ -122,6 +141,23 @@ class MobSystem {
                     if (dist < 3f && Math.abs(player.y - m.y) < 2.2f && player.hp > 0) { if (m.fuse == 0f) com.endroid.andcraft.Sfx.play("hiss"); m.fuse += dt }
                     else m.fuse = (m.fuse - dt * 0.6f).coerceAtLeast(0f)
                     if (m.fuse >= 1.5f) { booms.add(floatArrayOf(m.x, m.y + 0.7f, m.z, 3f, 18f)); it.remove(); continue }
+                }
+                MobType.SKELETON -> {
+                    if (dayK > 0.5f) { m.hp -= 2.5f * dt; if (m.hp <= 0) { it.remove(); continue } }
+                    if (dist < 24f) {
+                        val ux = dx / dist; val uz = dz / dist
+                        if (dist < 5f) { m.dirx = -ux; m.dirz = -uz; spd = m.spd }
+                        else if (dist > 11f) { m.dirx = ux; m.dirz = uz; spd = m.spd }
+                        else { m.dirx = -uz; m.dirz = ux; spd = m.spd * 0.5f }
+                        m.shoot -= dt
+                        if (m.shoot <= 0f && dist < 18f && player.hp > 0) {
+                            m.shoot = 1.8f + Math.random().toFloat()
+                            val t = dist / 14f
+                            val vy = (player.y + 1.2f - (m.y + 1.5f)) / t + 4.9f * t * 0.5f
+                            arrows.add(Arrow(m.x, m.y + 1.5f, m.z, ux * 14f, vy, uz * 14f))
+                            com.endroid.andcraft.Sfx.play("place")
+                        }
+                    } else { m.dirx = 0f; m.dirz = 0f }
                 }
                 MobType.WOLF, MobType.GOLEM -> {
                     val gol = m.type == MobType.GOLEM

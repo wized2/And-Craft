@@ -285,6 +285,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 MobType.VILLAGER -> "Villager · " + com.endroid.andcraft.world.Trades.PROF_NAMES[tm.prof.coerceIn(0, 2)] + " (friendly)"
                 MobType.ZOMBIE -> if (tm.big) "Zombie Brute (hostile)" else "Zombie (hostile)"
                 MobType.CREEPER -> "Creeper (hostile)"
+                MobType.SKELETON -> "Skeleton (hostile)"
                 MobType.WOLF -> if (tm.tamed) "Wolf (tamed)" else "Wolf"
                 MobType.GOLEM -> "Iron Golem (friendly)"
                 else -> tm.type.name.lowercase().replaceFirstChar { it.uppercase() }
@@ -459,7 +460,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 atkCd = 0.5f
                 if (mob.hp <= 0) {
                     mobDrops(mob)
-                    if (mob.type == MobType.ZOMBIE) { player.kills++; if (mob.big) player.brutes++ } else if (mob.type == MobType.CREEPER) player.kills++
+                    if (mob.type == MobType.ZOMBIE) { player.kills++; if (mob.big) player.brutes++ } else if (mob.type == MobType.CREEPER || mob.type == MobType.SKELETON) player.kills++
                     mobs.mobs.remove(mob)
                 }
             }
@@ -498,7 +499,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
     private fun mobDrops(m: Mob) {
         if (player.creative) return
         val r = { a: Int, b: Int -> a + (Math.random() * (b - a + 1)).toInt() }
-        val gain = when (m.type) { MobType.ZOMBIE -> if (m.big) 9 else 5; MobType.CREEPER -> 6; MobType.VILLAGER, MobType.GOLEM, MobType.WOLF -> 0; else -> 2 }
+        val gain = when (m.type) { MobType.ZOMBIE -> if (m.big) 9 else 5; MobType.CREEPER, MobType.SKELETON -> 6; MobType.VILLAGER, MobType.GOLEM, MobType.WOLF -> 0; else -> 2 }
         if (player.addXp(gain)) toast("Level ${player.xpLvl}!", 1.4f)
         when (m.type) {
             MobType.PIG -> player.give(Blocks.RAW_PORK, r(1, 3))
@@ -506,6 +507,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             MobType.SHEEP -> { if (!m.sheared) player.give(Blocks.WOOL, 1); player.give(Blocks.RAW_MUTTON, r(1, 2)) }
             MobType.ZOMBIE -> player.give(Blocks.ROTTEN, r(0, 2))
             MobType.CREEPER -> player.give(Blocks.GUNPOWDER, r(0, 2))
+            MobType.SKELETON -> player.give(Blocks.BONE, r(0, 2))
             MobType.CHICKEN -> player.give(Blocks.RAW_CHICKEN, 1)
             MobType.VILLAGER -> player.give(Blocks.EMERALD, 1)
             MobType.WOLF -> {}
@@ -656,6 +658,17 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         GLES20.glUniformMatrix4fv(uMvp, 1, false, vp, 0)
         for (m in meshes.values) m.draw(0, aPos, aUV, aL)
         for (m in mobs.mobs.toList()) drawMob(m)
+        for (a in mobs.arrows.toList()) {
+            Matrix.setIdentityM(model, 0)
+            Matrix.translateM(model, 0, a.x, a.y, a.z)
+            Matrix.rotateM(model, 0, Math.toDegrees(Math.atan2(-a.vx.toDouble(), -a.vz.toDouble())).toFloat(), 0f, 1f, 0f)
+            Matrix.translateM(model, 0, -0.03f, -0.03f, -0.25f)
+            Matrix.scaleM(model, 0, 0.06f, 0.06f, 0.5f)
+            Matrix.multiplyMM(mvp, 0, vp, 0, model, 0)
+            GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0)
+            GLES20.glUniform3f(uTint, 0.54f, 0.42f, 0.23f)
+            cube.draw(aPos, aUV, aL)
+        }
         if (camView != 0) drawPlayer()
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
@@ -835,6 +848,16 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 part(m, 0f, 1.58f, 0f, 0.42f, 0.42f, 0.42f, c)
                 part(m, -0.38f, 1.15f + ar * 0.3f, -0.25f, 0.18f, 0.18f, 0.6f, c)
                 part(m, 0.38f, 1.15f + ar * 0.3f, -0.25f, 0.18f, 0.18f, 0.6f, c)
+            }
+            MobType.SKELETON -> {
+                val dark = floatArrayOf(0.1f, 0.1f, 0.1f)
+                for (lx in floatArrayOf(-0.12f, 0.12f)) part(m, lx, 0.38f, 0f, 0.14f, 0.75f, 0.14f, c)
+                part(m, 0f, 1.1f, 0f, 0.45f, 0.7f, 0.22f, c)
+                part(m, 0f, 1.7f, 0f, 0.5f, 0.5f, 0.5f, c)
+                part(m, -0.12f, 1.72f, -0.26f, 0.1f, 0.1f, 0.03f, dark)
+                part(m, 0.12f, 1.72f, -0.26f, 0.1f, 0.1f, 0.03f, dark)
+                part(m, -0.3f, 1.45f, -0.3f, 0.12f, 0.12f, 0.6f, c)
+                part(m, 0.3f, 1.45f, -0.3f, 0.12f, 0.12f, 0.6f, c)
             }
             MobType.CREEPER -> {
                 val dark = floatArrayOf(0.05f, 0.08f, 0.05f)
