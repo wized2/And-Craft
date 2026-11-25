@@ -108,6 +108,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         }
     val dayNo: Int get() = floor(clock / dayLen).toInt()
     @Volatile var toast = ""
+    @Volatile var targetName = ""
     @Volatile var toastT = 0f
     fun toast(msg: String, sec: Float = 2f) { toast = msg; toastT = sec }
 
@@ -277,6 +278,18 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         }
         mobs.update(world, player, dayK, dt, dayNo)
         fx.update(dt, player.x, player.z)
+        run {
+            val tm = mobs.hit(player, look)
+            targetName = when (tm?.type) {
+                null -> ""
+                MobType.VILLAGER -> "Villager · " + com.endroid.andcraft.world.Trades.PROF_NAMES[tm.prof.coerceIn(0, 2)] + " (friendly)"
+                MobType.ZOMBIE -> if (tm.big) "Zombie Brute (hostile)" else "Zombie (hostile)"
+                MobType.CREEPER -> "Creeper (hostile)"
+                MobType.WOLF -> if (tm.tamed) "Wolf (tamed)" else "Wolf"
+                MobType.GOLEM -> "Iron Golem (friendly)"
+                else -> tm.type.name.lowercase().replaceFirstChar { it.uppercase() }
+            }
+        }
         for (b in mobs.booms.toList()) explode(b[0], b[1], b[2], b[3], b[4])
         mobs.booms.clear()
         for (b in fx.booms.toList()) explode(b[0], b[1], b[2], b[3], b[4])
@@ -835,9 +848,15 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                     2 -> floatArrayOf(0.5f, 0.5f, 0.55f)
                     else -> c
                 }
-                part(m, 0f, 0.8f, 0f, 0.55f, 1.2f, 0.34f, robe)
-                part(m, 0f, 1.6f, 0f, 0.4f, 0.5f, 0.4f, skin)
-                part(m, 0f, 1.5f, -0.26f, 0.12f, 0.2f, 0.12f, skin)
+                val vskin = floatArrayOf(0.84f, 0.66f, 0.55f)
+                part(m, 0f, 0.8f, 0f, 0.6f, 1.2f, 0.4f, robe)
+                part(m, 0f, 0.45f, 0f, 0.62f, 0.1f, 0.42f, floatArrayOf(robe[0] * 0.6f, robe[1] * 0.6f, robe[2] * 0.6f))
+                part(m, 0f, 1.62f, 0f, 0.46f, 0.52f, 0.46f, vskin)
+                part(m, 0f, 1.52f, -0.3f, 0.14f, 0.26f, 0.14f, vskin)
+                part(m, 0f, 1.74f, -0.24f, 0.46f, 0.07f, 0.04f, floatArrayOf(0.25f, 0.18f, 0.12f))
+                part(m, -0.12f, 1.66f, -0.24f, 0.08f, 0.08f, 0.03f, floatArrayOf(0.15f, 0.5f, 0.2f))
+                part(m, 0.12f, 1.66f, -0.24f, 0.08f, 0.08f, 0.03f, floatArrayOf(0.15f, 0.5f, 0.2f))
+                part(m, 0f, 1.1f, -0.28f, 0.58f, 0.18f, 0.2f, vskin)
             }
             MobType.WOLF -> {
                 val dark = floatArrayOf(0.6f, 0.58f, 0.55f)

@@ -11,35 +11,46 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
-    <TextView
-        android:id="@+id/hudInfo"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
-        android:layout_margin="12dp"
-        android:textColor="#FFFFFF"
-        android:textSize="11sp"
-        android:shadowColor="#000"
-        android:shadowDx="1"
-        android:shadowDy="1"
-        android:shadowRadius="2"
-        android:text="And Craft"/>
-
-    <TextView
-        android:id="@+id/quest"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="12dp"
-        android:layout_marginTop="12dp"
-        android:maxWidth="320dp"
-        android:textColor="#FFE9A6"
-        android:textSize="12sp"
-        android:shadowColor="#000"
-        android:shadowDx="1"
-        android:shadowDy="1"
-        android:shadowRadius="2"
-        android:text=""/>
+        android:layout_margin="8dp"
+        android:orientation="vertical"
+        android:background="#66000000"
+        android:padding="8dp">
+        <TextView
+            android:id="@+id/hudDay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:text="Day 1"/>
+        <TextView
+            android:id="@+id/hudCombat"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFE9A6"
+            android:textSize="12sp"
+            android:text=""/>
+        <TextView
+            android:id="@+id/hudInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#CCFFFFFF"
+            android:textSize="10sp"
+            android:text=""/>
+        <TextView
+            android:id="@+id/quest"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxWidth="260dp"
+            android:layout_marginTop="4dp"
+            android:textColor="#9BE08A"
+            android:textSize="11sp"
+            android:text=""/>
+    </LinearLayout>
 
     <TextView
         android:id="@+id/toast"
@@ -65,33 +76,34 @@
         android:shadowColor="#000"
         android:shadowRadius="2"/>
 
-    <!-- top right: craft + menu -->
+    <!-- top right: menu in the corner, craft under it -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_margin="8dp"
-        android:orientation="horizontal">
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCraft"
-            android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:layout_marginEnd="6dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:text="CRAFT"
-            android:textSize="11sp"
-            app:backgroundTint="#66000000"/>
+        android:orientation="vertical">
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnMenu"
-            android:layout_width="48dp"
-            android:layout_height="44dp"
+            android:layout_width="52dp"
+            android:layout_height="48dp"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             android:padding="0dp"
             android:text="≡"
-            android:textSize="22sp"
-            app:backgroundTint="#66000000"/>
+            android:textSize="24sp"
+            app:backgroundTint="#88000000"/>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCraft"
+            android:layout_width="52dp"
+            android:layout_height="44dp"
+            android:layout_marginTop="6dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            android:text="CRAFT"
+            android:textSize="9sp"
+            app:backgroundTint="#88000000"/>
     </LinearLayout>
 
     <!-- hearts / food above the hotbar -->
@@ -99,7 +111,8 @@
         android:id="@+id/stats"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="64dp"
         android:layout_marginBottom="62dp"
         android:orientation="horizontal">
         <TextView
@@ -122,12 +135,39 @@
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/hotbar"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
+        android:layout_gravity="bottom|start"
         android:layout_marginBottom="8dp"
-        android:orientation="horizontal"/>
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="190dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBlocks"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            android:text="▦"
+            android:textSize="22sp"
+            app:cornerRadius="6dp"
+            app:backgroundTint="#CC2E7D32"/>
+        <HorizontalScrollView
+            android:id="@+id/hotbarScroll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:scrollbars="none">
+            <LinearLayout
+                android:id="@+id/hotbar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"/>
+        </HorizontalScrollView>
+    </LinearLayout>
 
     <!-- thumb arc, bottom right: JUMP in the corner, BREAK left of it, PLACE above, EAT between -->
     <com.google.android.material.button.MaterialButton

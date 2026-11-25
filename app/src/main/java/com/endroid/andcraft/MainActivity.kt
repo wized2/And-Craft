@@ -32,6 +32,7 @@ class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var lastJumpTap = 0L
     private var dialog: AlertDialog? = null
+    private var lastScrollSlot = -1
 
     private val tick = object : Runnable {
         override fun run() {
@@ -41,14 +42,19 @@ class MainActivity : AppCompatActivity() {
                 val day = if (r.dayK > 0.55f) "Day" else if (r.dayK < 0.3f) "Night" else "Dusk"
                 val dayNo = (r.clock / r.dayLen).toInt() + 1
                 val info = findViewById<TextView>(R.id.hudInfo)
+                val hh = ((r.clock / r.dayLen * 24f + 6f) % 24f).toInt()
+                val mm = ((r.clock / r.dayLen * 24f * 60f) % 60f).toInt()
+                val icon = if (r.dayK > 0.55f) "☀" else if (r.dayK < 0.3f) "☾" else "◐"
+                findViewById<TextView>(R.id.hudDay).text = "$icon $day · Day $dayNo · %02d:%02d".format(hh, mm)
+                val tierN = arrayOf("Fist", "Wood Sword", "Stone Sword", "Iron Sword", "Diamond Sword")
+                findViewById<TextView>(R.id.hudCombat).text = if (p.creative) "Creative" else "⚔ ${tierN[p.sword.coerceIn(0, 4)]} · ${p.kills} kills"
                 info.visibility = if (r.showInfo) View.VISIBLE else View.GONE
-                info.text = "${r.fps} fps | ${p.x.toInt()}, ${p.y.toInt()}, ${p.z.toInt()}\n" +
-                    "${if (p.creative) "Creative" else "Survival"} · $day $dayNo · %02d:%02d · seed ${r.world.seed}".format(((r.clock / r.dayLen * 24f + 6f) % 24f).toInt(), (((r.clock / r.dayLen * 24f * 60f) % 60f)).toInt())
+                info.text = "${r.fps} fps | ${p.x.toInt()}, ${p.y.toInt()}, ${p.z.toInt()} | seed ${r.world.seed}"
                 val q = findViewById<TextView>(R.id.quest)
                 val oi = r.objIdx
                 if (!p.creative && oi < Objectives.list.size) {
                     q.visibility = View.VISIBLE
-                    q.text = "Goal ${oi + 1}/${Objectives.list.size}: ${Objectives.list[oi].text}"
+                    q.text = "★ ${oi + 1}/${Objectives.list.size}: ${Objectives.list[oi].text}"
                 } else q.visibility = View.GONE
                 val req = r.uiRequest
                 if (req != null) {
@@ -66,7 +72,8 @@ class MainActivity : AppCompatActivity() {
                 findViewById<TextView>(R.id.hearts).text = meter(p.hp, "♥", 0xFFE53935.toInt(), armorTxt)
                 findViewById<TextView>(R.id.foodbar).text = meter(p.food, "●", 0xFFE0952B.toInt(), "")
                 val mp = r.mineP
-                findViewById<TextView>(R.id.crosshair).text = if (mp > 0f) "+\n${(mp * 100).toInt()}%" else "+"
+                val tn = r.targetName
+                findViewById<TextView>(R.id.crosshair).text = if (mp > 0f) "+\n${(mp * 100).toInt()}%" else if (tn.isNotEmpty()) "+\n$tn" else "+"
                 refreshHotbar()
             }
             handler.postDelayed(this, 150)
@@ -98,6 +105,7 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<MaterialButton>(R.id.btnCraft).setOnClickListener { showCraft() }
         findViewById<MaterialButton>(R.id.btnMenu).setOnClickListener { showMenu() }
+        findViewById<MaterialButton>(R.id.btnBlocks).setOnClickListener { showBlockPicker() }
         handler.post(tick)
     }
 
@@ -142,6 +150,43 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton("Close", null))
+    }
+
+    /** grid of every placeable block: tap to put it in the selected hotbar slot */
+    private fun showBlockPicker() {
+        val r = game.renderer
+        if (!r.ready) return
+        val p = r.player
+        val dp = resources.displayMetrics.density
+        val ids = (1..57).filter { (Blocks.placeable(it) || it == Blocks.SEEDS) && (p.creative || p.count(it) > 0) }
+        val grid = android.widget.GridLayout(this)
+        grid.columnCount = 5
+        grid.setPadding((8 * dp).toInt(), (8 * dp).toInt(), (8 * dp).toInt(), (8 * dp).toInt())
+        val sv = android.widget.ScrollView(this)
+        sv.addView(grid)
+        val dlg = AlertDialog.Builder(this).setTitle("Blocks (tap to put in slot ${p.slot + 1})").setView(sv).setNegativeButton("Close", null)
+        for (id in ids) {
+            val tv = TextView(this)
+            tv.layoutParams = android.widget.GridLayout.LayoutParams().apply { width = (62 * dp).toInt(); height = (68 * dp).toInt(); setMargins(3, 3, 3, 3) }
+            tv.gravity = android.view.Gravity.CENTER_HORIZONTAL
+            tv.textSize = 9f
+            tv.setTextColor(Color.WHITE)
+            tv.setBackgroundColor(0xFF333333.toInt())
+            tv.text = Blocks.name(id).take(8)
+            val ic = Icons.get(id)
+            if (ic != null) {
+                val d = BitmapDrawable(resources, ic)
+                d.setBounds(0, 0, (34 * dp).toInt(), (34 * dp).toInt()); d.isFilterBitmap = false
+                tv.setCompoundDrawables(null, d, null, null)
+            }
+            tv.setOnClickListener {
+                p.hotbar[p.slot] = id
+                lastScrollSlot = -1
+                dialog?.dismiss()
+            }
+            grid.addView(tv)
+        }
+        showDialog(dlg)
     }
 
     private fun showBackpack() {
@@ -376,6 +421,11 @@ class MainActivity : AppCompatActivity() {
                 tv.setCompoundDrawables(null, d, null, null)
             } else tv.text = Blocks.name(id).take(5) + "\n" + n
             tv.setBackgroundColor(if (i == p.slot) 0xCCFFFFFF.toInt() else 0x99000000.toInt())
+            if (i == p.slot && lastScrollSlot != i) {
+                lastScrollSlot = i
+                val sv = findViewById<android.widget.HorizontalScrollView>(R.id.hotbarScroll)
+                sv.post { sv.smoothScrollTo(tv.left - sv.width / 2 + tv.width / 2, 0) }
+            }
             tv.setTextColor(if (i == p.slot) Color.BLACK else Color.WHITE)
         }
     }
