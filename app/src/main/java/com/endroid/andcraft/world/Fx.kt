@@ -58,7 +58,7 @@ class Fx(private val world: World) {
         randomTicks(px, pz)
     }
 
-    private fun growTree(x: Int, y: Int, z: Int) {
+    fun growTree(x: Int, y: Int, z: Int) {
         val th = 4 + (Math.random() * 2).toInt()
         for (i in 0 until th) {
             val b = world.get(x, y + i, z)

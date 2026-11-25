@@ -227,7 +227,7 @@ class MainActivity : AppCompatActivity() {
                 2 -> showSettings()
                 3 -> game.queueEvent { r.player.respawn(r.world.findSpawn()); r.toast("Teleported to spawn") }
                 4 -> confirmNewWorld()
-                5 -> showCommands()
+                5 -> if (r.player.creative) showCommands() else r.toast("Commands are creative-only", 1.5f)
                 6 -> { r.shotReq = true }
                 7 -> {
                     val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

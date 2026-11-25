@@ -528,6 +528,10 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
             }
         }
         val hit = Raycast.cast(world, player.x, player.eyeY(), player.z, look[0], look[1], look[2], 5f) ?: return
+        if (player.selected() == Blocks.BONE && (player.creative || player.count(Blocks.BONE) > 0)) {
+            if (hit.id == Blocks.SAPLING) { fx.growTree(hit.x, hit.y, hit.z); if (!player.creative) player.take(Blocks.BONE, 1); toast("Tree grown", 1f); return }
+            if (hit.id == Blocks.WHEAT0 || hit.id == Blocks.WHEAT1) { world.set(hit.x, hit.y, hit.z, Blocks.WHEAT2); if (!player.creative) player.take(Blocks.BONE, 1); toast("Crop grown", 1f); return }
+        }
         if (hit.id == Blocks.BED) { useBed(hit); return }
         if (hit.id == Blocks.TNT && (player.creative || player.count(Blocks.FLINT) > 0)) { fx.ignite(hit.x, hit.y, hit.z, 3f); toast("Ssss...", 1f); return }
         if (hit.id == Blocks.FURNACE) { uiRequest = UiReq("furnace", hit.x, hit.y, hit.z); return }

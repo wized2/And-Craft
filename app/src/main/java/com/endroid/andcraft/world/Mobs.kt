@@ -155,7 +155,13 @@ class MobSystem {
                     }
                 }
                 MobType.ZOMBIE -> {
-                    if (dist < 24f) {
+                    var vt: Mob? = null; var vd = 12f
+                    for (o in mobs) if (o.type == MobType.VILLAGER && !o.dead) { val d = hypot(o.x - m.x, o.z - m.z); if (d < vd) { vd = d; vt = o } }
+                    if (vt != null && (vd < dist || dist >= 24f)) { // zombies go for villagers too
+                        val cx = vt.x - m.x; val cz = vt.z - m.z; val cd = hypot(cx, cz).coerceAtLeast(0.001f)
+                        m.dirx = cx / cd; m.dirz = cz / cd; spd = m.spd
+                        if (cd < 1.4f && m.cd <= 0f) { strike(m, vt, 3); m.cd = 1f }
+                    } else if (dist < 24f) {
                         m.dirx = dx / dist; m.dirz = dz / dist; spd = m.spd
                     } else { m.dirx = 0f; m.dirz = 0f }
                     // short wind-up you can dodge or interrupt, then a swipe
@@ -178,7 +184,12 @@ class MobSystem {
                     if (m.type == MobType.VILLAGER) {
                         val hx = m.homeX - m.x; val hz = m.homeZ - m.z
                         val hd = hypot(hx, hz).coerceAtLeast(0.001f)
-                        if (dayK < 0.3f) { // night: go home and stay
+                        val thr = nearestHostile(m, 9f)
+                        if (thr != null) { // run from zombies and creepers
+                            busy = true
+                            val fx = m.x - thr.x; val fz = m.z - thr.z; val fd = hypot(fx, fz).coerceAtLeast(0.001f)
+                            m.dirx = fx / fd; m.dirz = fz / fd; spd = m.spd * 1.5f
+                        } else if (dayK < 0.3f) { // night: go home and stay
                             busy = true
                             if (hd > 1.2f) { m.dirx = hx / hd; m.dirz = hz / hd; spd = m.spd } else { m.dirx = 0f; m.dirz = 0f }
                         } else if (hd > 12f) {
