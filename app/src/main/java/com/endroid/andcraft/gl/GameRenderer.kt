@@ -448,6 +448,7 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
                 var dmg = if (player.creative) 30 else player.weaponDmg()
                 if (!player.onGround && player.vy < -1f && !player.inWater) dmg = (dmg * 1.5f).toInt()
                 mob.hp -= dmg
+                player.wear(2)?.let { toast("Your $it broke!", 1.8f) }
                 if (mob.type == MobType.WOLF && !mob.tamed) mob.aggro = true
                 Sfx.play("hit")
                 mob.hurt = 0.4f
@@ -482,6 +483,8 @@ class GameRenderer(ctx: Context) : GLSurfaceView.Renderer {
         val d = drops(hit.id)
         val oreXp = when (hit.id) { Blocks.DIAMOND_ORE -> 7; Blocks.GOLD_ORE -> 4; Blocks.IRON_ORE -> 3; Blocks.COAL_ORE -> 2; else -> 0 }
         if (oreXp > 0 && player.addXp(oreXp)) toast("Level ${player.xpLvl}!", 1.4f)
+        val broke = if (Blocks.needPick(hit.id) > 0) player.wear(0) else if (Blocks.axeBlock(hit.id)) player.wear(1) else null
+        if (broke != null) { toast("Your $broke broke!", 1.8f); Sfx.play("hurt") }
         world.set(hit.x, hit.y, hit.z, Blocks.AIR)
         if (hit.id == Blocks.FURNACE) Machines.furnaces.remove(Machines.key(hit.x, hit.y, hit.z))
         val above = world.get(hit.x, hit.y + 1, hit.z)

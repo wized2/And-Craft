@@ -32,6 +32,20 @@ class Player(var x: Float, var y: Float, var z: Float) {
     var armor = 0
     var autoJump = true
     var kills = 0
+    var wearPick = 0
+    var wearAxe = 0
+    var wearSword = 0
+    /** tool durability like Minecraft (wood 59, stone 131, iron 250, diamond 1561); returns the broken tool's name or null */
+    fun wear(kind: Int): String? {
+        if (creative) return null
+        val dur = intArrayOf(0, 59, 131, 250, 1561)
+        when (kind) {
+            0 -> if (pick > 0 && ++wearPick >= dur[pick.coerceIn(0, 4)]) { pick = 0; wearPick = 0; return "pickaxe" }
+            1 -> if (axe > 0 && ++wearAxe >= dur[axe.coerceIn(0, 4)]) { axe = 0; wearAxe = 0; return "axe" }
+            else -> if (sword > 0 && ++wearSword >= dur[sword.coerceIn(0, 4)]) { sword = 0; wearSword = 0; return "sword" }
+        }
+        return null
+    }
     var xp = 0
     var xpLvl = 0
     fun xpNeed() = 8 + xpLvl * 5
